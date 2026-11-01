@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panel del staff · JARVIS</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="img/icono.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap">
+  <link rel="stylesheet" href="css/jarvis.css">
+  <style>
+    .staff { max-width: 1200px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+    .dos { display: grid; gap: 16px; }
+    @media (min-width: 900px) { .dos { grid-template-columns: 1fr 1fr; } }
+    table { width: 100%; border-collapse: collapse; font-size: 16px; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--borde); vertical-align: middle; }
+    th { color: var(--tenue); font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .tabla-scroll { overflow-x: auto; }
+    .interruptor { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--borde); }
+    .detalle-eq td { background: rgba(0, 0, 0, 0.35); font-size: 15px; }
+    .enlaces a { margin-right: 14px; }
+  </style>
+</head>
+<body>
+  <canvas id="fondo" aria-hidden="true"></canvas>
+  <header class="barra">
+    <div class="logo"><b>J.A.R.V.I.S.</b><small>PANEL DEL STAFF</small></div>
+    <span class="espacio"></span>
+    <span class="tenue" id="actualizado" style="font-size:14px"></span>
+  </header>
+  <main class="staff" id="staff"></main>
+  <script type="module" src="js/staff.js"></script>
+</body>
+</html>

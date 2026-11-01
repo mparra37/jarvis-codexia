@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>JARVIS · Ghost Network</title>
+  <meta name="description" content="JARVIS ya armado para la estación de Redes de CODEXIA: videos, explicaciones, ayuda y resultados.">
+  <meta name="theme-color" content="#03060b">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="img/icono.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="img/icono-180.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap">
+  <link rel="stylesheet" href="css/jarvis.css">
+  <style>
+    .vr { display: grid; gap: 16px; padding: 16px; max-width: 1280px; margin: 0 auto; }
+    @media (min-width: 960px) {
+      .vr { grid-template-columns: minmax(320px, 0.85fr) minmax(0, 1.4fr); align-items: start; }
+      .vr-jarvis { position: sticky; top: 72px; max-height: calc(100dvh - 88px); overflow: auto; }
+    }
+    .vr-jarvis .escenario canvas { width: min(200px, 44vw); height: min(200px, 44vw); }
+    .reloj { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--acento); background: rgba(63, 208, 255, 0.08); }
+    .reloj .t { font-family: var(--titulo); font-size: 40px; color: var(--acento); line-height: 1; }
+    .reloj.urgente { border-color: var(--rojo); animation: latido 1s infinite; }
+    .reloj.urgente .t { color: var(--rojo); }
+    .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+    .tabs button { flex: 1; min-width: 0; padding: 10px 6px; }
+    @media (max-width: 520px) { .tabs button { font-size: 10.5px; letter-spacing: 0.02em; } .barra .chip-equipo { max-width: 34vw; } .logo small { font-size: 8px; } }
+    .juego { border-left: 5px solid var(--borde); }
+    .juego.actual { border-left-color: var(--acento); background: rgba(63, 208, 255, 0.07); }
+    .juego .num { font-family: var(--titulo); color: var(--acento); margin-right: 6px; }
+    .juego details summary { cursor: pointer; color: var(--acento); font-weight: 700; min-height: 36px; display: flex; align-items: center; }
+    .juego ol { margin: 6px 0 10px; padding-left: 22px; }
+    .paso { border-left: 4px solid var(--borde); }
+    .paso.actual { border-left-color: var(--verde); background: rgba(61, 255, 154, 0.06); }
+    .paso .min { font-family: var(--mono); color: var(--acento); }
+    table { width: 100%; border-collapse: collapse; font-size: 16px; }
+    th, td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--borde); }
+    th { color: var(--tenue); font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .tabla-scroll { overflow-x: auto; }
+    .ok { color: var(--verde); } .mal { color: var(--rojo); }
+    video.reel { width: 100%; max-height: 70dvh; border-radius: 12px; background: #000; display: block; }
+  </style>
+</head>
+<body>
+  <canvas id="fondo" aria-hidden="true"></canvas>
+  <header class="barra">
+    <div class="logo"><b>J.A.R.V.I.S.</b><small>GHOST NETWORK · ESTACIÓN 04</small></div>
+    <span class="espacio"></span>
+    <span class="bateria" id="bateria" hidden title="Batería de la IA de la estación"></span>
+    <span class="chip-equipo" id="estado-ia"><span class="punto-conexion" id="punto"></span><span class="nombre" id="estado-texto">Conectando…</span></span>
+  </header>
+  <main class="vr">
+    <aside class="vr-jarvis panel">
+      <div class="escenario">
+        <canvas id="nucleo"></canvas>
+        <div class="nombre-jarvis">JARVIS</div>
+        <div class="detalle">Asistente de la estación de Redes</div>
+        <div class="subtitulo" id="subtitulo" aria-live="polite"></div>
+      </div>
+      <div class="reloj" id="reloj" hidden>
+        <div><div class="tenue" id="reloj-juego" style="font-size:14px"></div><div class="t" id="reloj-t">0:00</div></div>
+        <div class="fila-botones"><button class="btn btn-chico" id="reloj-pausa">Pausa</button><button class="btn btn-chico btn-rojo" id="reloj-parar">Parar</button></div>
+      </div>
+      <form class="chat-entrada" id="f-chat">
+        <button type="button" class="btn-redondo" id="mic" aria-label="Hablar" hidden></button>
+        <input type="text" id="pregunta" maxlength="300" placeholder="Pregúntale a JARVIS…" autocomplete="off">
+        <button class="btn-redondo" id="enviar" aria-label="Enviar"></button>
+      </form>
+      <div class="chips" id="dudas" style="margin-top:10px"></div>
+      <div class="historial" id="historial"></div>
+    </aside>
+    <section>
+      <div class="tabs" id="tabs">
+        <button class="btn" data-tab="juegos">Juegos</button>
+        <button class="btn" data-tab="guion">Guion</button>
+        <button class="btn" data-tab="resultados">Resultados</button>
+        <button class="btn" data-tab="ajustes">Ajustes</button>
+      </div>
+      <div id="contenido"></div>
+    </section>
+  </main>
+  <script type="module" src="js/vr.js"></script>
+</body>
+</html>

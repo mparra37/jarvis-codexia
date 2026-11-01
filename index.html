@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>JARVIS · CODEXIA</title>
+  <meta name="description" content="Armen su propio asistente de inteligencia artificial para vencer a Ultrón.">
+  <meta name="theme-color" content="#03060b">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="img/icono.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="img/icono-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap">
+  <link rel="stylesheet" href="css/jarvis.css">
+</head>
+<body>
+  <canvas id="fondo" aria-hidden="true"></canvas>
+  <header class="barra">
+    <div class="logo"><b>J.A.R.V.I.S.</b><small>CODEXIA</small></div>
+    <span class="espacio"></span>
+    <span class="bateria" id="bateria" hidden title="Batería del chat con IA"></span>
+    <button class="chip-equipo" id="chip-equipo" hidden aria-label="Equipo y código para unir celulares">
+      <span class="punto-conexion" id="punto"></span>
+      <span class="nombre" id="chip-nombre"></span>
+      <span class="codigo" id="chip-codigo"></span>
+    </button>
+  </header>
+  <main id="app"></main>
+  <noscript><p class="centro">JARVIS necesita JavaScript.</p></noscript>
+
+  <script src="vendor/qrcode.js"></script>
+  <script src="vendor/jsQR.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+# JARVIS · CODEXIA — Worker de Cloudflare (ver ../LEEME.md)
+name = "jarvis-codexia"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# Sitios que pueden usar el Worker (separados por coma). localhost siempre se permite.
+ORIGENES = "https://mparra37.github.io"
+# Modelo de Claude. claude-haiku-5-5 es más rápido y mucho más barato; claude-opus-5-5 es el más capaz.
+MODELO = "claude-opus-5-5"
+# Esfuerzo de la IA: low es rápido (recomendado para respuestas cortas en voz alta).
+ESFUERZO = "low"
+# Máximo de equipos que se pueden registrar.
+MAX_EQUIPOS = "60"
+# Máximo de preguntas a la IA por día (protege la API key).
+LIMITE_DIARIO = "3000"
+# Clave de los códigos de los juegos VR (la misma de ITC-VR-Games/js/config.js).
+CLAVE_VR = "enlace-vr-2026"
+
+# Base de datos. Después de "npx wrangler d1 create jarvis-codexia", pega aquí el database_id que te da.
+[[d1_databases]]
+binding = "DB"
+database_name = "jarvis-codexia"
+database_id = "PEGA-AQUI-EL-ID-DE-TU-BASE-D1"
+
+# Secretos (NO van en este archivo):
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put STAFF_PIN

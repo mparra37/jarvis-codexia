@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tarjetas QR · JARVIS</title>
+  <link rel="icon" href="img/icono.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap">
+  <style>
+    @page { size: letter; margin: 0.35in; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Rajdhani', system-ui, sans-serif; background: #e9edf2; color: #0b1626; }
+    .barra { position: sticky; top: 0; z-index: 2; background: #03060b; color: #e6f3ff; padding: 12px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .barra b { font-family: 'Orbitron', sans-serif; letter-spacing: .1em; }
+    .barra input { flex: 1; min-width: 240px; padding: 8px 10px; border-radius: 8px; border: 1px solid #335; background: #0a1424; color: #e6f3ff; font: inherit; }
+    .barra button { padding: 10px 18px; border-radius: 999px; border: 0; background: #3fd0ff; color: #02121c; font-family: 'Orbitron', sans-serif; font-weight: 700; cursor: pointer; }
+    .aviso { background: #fff4cc; color: #5a4300; padding: 10px 16px; font-size: 16px; }
+    .ayuda { max-width: 8in; margin: 16px auto; font-size: 17px; }
+    .hoja { width: 7.8in; height: 10.3in; margin: 16px auto; background: #fff; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); box-shadow: 0 2px 12px rgba(0,0,0,.15); break-after: page; page-break-after: always; }
+    .tarjeta { position: relative; border: 1px dashed #b8c2cf; padding: 0.14in; display: flex; flex-direction: column; align-items: center; text-align: center; overflow: hidden; }
+    .franja { align-self: stretch; display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 5px 9px; border-radius: 8px; color: #fff; font-family: 'Orbitron', sans-serif; font-weight: 800; font-size: 11px; letter-spacing: .14em; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .franja svg { width: 18px; height: 18px; }
+    .nombre { font-family: 'Orbitron', sans-serif; font-weight: 800; font-size: 17px; line-height: 1.1; margin: 0.1in 0 0.03in; letter-spacing: .03em; }
+    .desc { font-size: 13.5px; line-height: 1.15; color: #3a4a5e; min-height: 2.3em; }
+    .qr { width: 1.45in; height: 1.45in; margin: auto 0 0.04in; }
+    .qr svg { width: 100%; height: 100%; display: block; }
+    .pie { align-self: stretch; display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: #6b7a8e; letter-spacing: .08em; }
+    .pie .cod { font-family: 'Share Tech Mono', monospace; font-size: 18px; color: #0b1626; font-weight: 700; letter-spacing: .1em; }
+    .tarjeta.ult { background: radial-gradient(circle at 50% 30%, #fff6d6, #fff 70%); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .tarjeta.ult .nombre { color: #b07800; }
+    .tarjeta.info { text-align: left; align-items: stretch; }
+    .tarjeta.info ol { margin: 6px 0; padding-left: 18px; font-size: 13px; line-height: 1.2; }
+    .tarjeta.info .qr { width: 1in; height: 1in; align-self: center; margin-top: auto; }
+    .cartel { border: 1px dashed #b8c2cf; padding: 0.35in 0.45in; display: grid; grid-template-columns: 1fr auto; gap: 0.3in; align-items: center; }
+    .hoja.carteles { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+    .cartel .grande { font-family: 'Orbitron', sans-serif; font-weight: 800; font-size: 40px; line-height: 1; color: #0b1626; }
+    .cartel .sub { font-size: 24px; margin: 8px 0 18px; color: #3a4a5e; }
+    .cartel .est { display: inline-block; padding: 8px 16px; border-radius: 10px; color: #fff; font-family: 'Orbitron', sans-serif; font-weight: 800; font-size: 20px; letter-spacing: .06em; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .cartel .reto { font-size: 18px; margin-top: 6px; color: #3a4a5e; }
+    .cartel .nota { font-size: 15px; color: #6b7a8e; margin-top: 18px; }
+    .cartel .qr { width: 2.6in; height: 2.6in; margin: 0; }
+    @media print { .barra, .aviso, .ayuda { display: none !important; } body { background: #fff; } .hoja { margin: 0; box-shadow: none; width: 100%; height: 10.3in; } }
+  </style>
+</head>
+<body>
+  <div class="barra">
+    <b>TARJETAS QR</b>
+    <label for="base" style="font-size:14px">Los QR abren:</label>
+    <input id="base" spellcheck="false">
+    <select id="que" style="padding:8px;border-radius:8px;background:#0a1424;color:#e6f3ff;border:1px solid #335;font:inherit">
+      <option value="todo">Sobre + carteles</option>
+      <option value="sobre">Solo el sobre (36 tarjetas)</option>
+      <option value="carteles">Solo los carteles de estación</option>
+    </select>
+    <button id="imprimir">Imprimir</button>
+  </div>
+  <div class="aviso" id="aviso" hidden></div>
+  <div class="ayuda">
+    <p><b>Un sobre por equipo:</b> 4 hojas tamaño carta (36 tarjetas). Impriman a color, recorten por la línea punteada y metan las tarjetas en un sobre. Para 20 equipos impriman 20 copias. Si lo pueden imprimir en cartulina, mejor.</p>
+    <p>La tarjeta <b>★ Módulo legendario</b> es la trampa de Ultrón (lección de ciberseguridad): no la quiten.</p>
+    <p><b>Carteles de estación</b> (al final, 2 por hoja): péguenlos en la mesa de cada taller. Su QR abre las pistas de esa estación en el JARVIS del equipo, así se acuerdan de usarlo cuando se atoren.</p>
+  </div>
+  <div id="hojas"></div>
+  <script src="vendor/qrcode.js"></script>
+  <script type="module" src="js/tarjetas.js"></script>
+</body>
+</html>
