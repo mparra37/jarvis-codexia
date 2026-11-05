@@ -5,7 +5,8 @@
  */
 
 export const JUEGOS_VR = {
-  1: 'Router humano', 2: 'Arma la computadora', 3: 'Carrera de palabras', 4: 'Robot programado', 5: 'Laboratorio NOC-7', 6: 'Programa al robot',
+  1: 'Router humano', 2: 'Arma a Ultrón', 3: 'Carrera de palabras', // en CODEXIA, el juego 2 es Arma a Ultrón
+  4: 'Robot programado', 5: 'Laboratorio NOC-7', 6: 'Programa al robot',
 };
 const LETRAS = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
