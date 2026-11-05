@@ -2,12 +2,15 @@
  *
  * API_URL: la dirección del Worker de Cloudflare (ver LEEME.md, paso 2), por ejemplo
  *   'https://jarvis-codexia.tu-cuenta.workers.dev'
- * Si se deja vacía, JARVIS funciona sin servidor: todo se guarda solo en el aparato, no se puede unir
- * otro celular al equipo, no hay Sala de control y el chat con IA no está disponible.
+ * Si se deja vacía, JARVIS funciona igual con su cerebro básico (respuestas pre-escritas). Cada tablet
+ * guarda su propio JARVIS; el servidor solo se usa para el Cerebro IA.
  * En localhost se usa el servidor de prueba (dev/servidor.mjs) automáticamente.
  */
 export const CONFIG = {
   API_URL: '',
+  // Cerebro IA (tarjeta H4): 'auto' = usa la IA si hay API_URL y si falla contesta el cerebro básico;
+  // 'basico' = nunca llama a la IA (todo con respuestas pre-escritas).
+  IA: 'auto',
   // Clave de los códigos de verificación de los juegos VR (la de ITC-VR-Games/js/config.js).
   CLAVE_VR: 'enlace-vr-2026',
   // Los juegos VR de la estación de Redes (de ahí se toman los videos).

@@ -41,12 +41,13 @@
 
     <section class="panel">
       <h2>La idea</h2>
-      <p>Cada equipo arma su propio asistente de inteligencia artificial escaneando tarjetas QR de un sobre: le pone nombre, voz, forma, fondo y personalidad, y escribe su <b>directiva principal</b> (el prompt de sistema). No hay retos ni roles: todos escanean, prueban y cambian de opinión. Cada tarjeta enseña un concepto real (síntesis de voz, interfaces, prompts, contexto, ciberseguridad). Al final lo encienden y aparece en la pantalla grande. Durante el resto del día, su JARVIS les sirve de bitácora, marcador, cámara y ayuda con IA (da pistas, no respuestas).</p>
+      <p>Cada equipo arma su propio asistente de inteligencia artificial en su tablet, escaneando tarjetas QR de un sobre: nombre, voz, forma, fondo y personalidad, y escriben su <b>directiva principal</b> (el prompt de sistema). Cada tablet trabaja sola: no hay que unir aparatos ni esperar a nadie. El presentador guía con el PowerPoint. Al final lo encienden y se presenta. Durante el día, JARVIS les da pistas de cada estación, guarda sus piezas y sus puntos.</p>
+      <p><b>Dos cerebros:</b> JARVIS empieza con un <b>cerebro básico</b> (respuestas escritas por personas, funciona sin internet). Con la tarjeta <b>H4 · Cerebro IA</b> se conecta a una IA; si la IA falla o se acaba su batería, vuelve el básico solo. El taller nunca depende de la IA.</p>
       <div class="enlaces-g">
-        <a class="panel" href="./"><b>App de equipos</b>La que abren tablets y celulares</a>
-        <a class="panel" href="sala.html"><b>Sala de control</b>Para el proyector</a>
-        <a class="panel" href="staff.html"><b>Panel del staff</b>Batería, anuncios, equipos (con PIN)</a>
-        <a class="panel" href="tarjetas.html"><b>Tarjetas QR</b>Imprimir un sobre por equipo</a>
+        <a class="panel" href="./"><b>App</b>La que abren las tablets</a>
+        <a class="panel" href="presentacion/JARVIS_taller_CODEXIA.pptx"><b>PowerPoint</b>16 diapositivas con notas</a>
+        <a class="panel" href="tarjetas.html"><b>Tarjetas QR</b>Un sobre por equipo y carteles</a>
+        <a class="panel" href="staff.html"><b>Panel del staff</b>IA: pausa y batería (con PIN)</a>
         <a class="panel" href="taller-vr.html"><b>Taller VR</b>JARVIS ya armado de Ghost Network</a>
       </div>
     </section>
@@ -54,33 +55,31 @@
     <section class="panel">
       <h2>Antes del evento</h2>
       <ul class="check">
-        <li>El Worker de Cloudflare está desplegado con la API key, y su dirección está en <span class="mono">js/config.js</span> (ver LEEME.md).</li>
-        <li>En el panel del staff aparece “IA: configurada”. Hagan una pregunta de prueba desde una tablet.</li>
-        <li>Imprimir <b>un sobre por equipo</b> desde <a href="tarjetas.html">Tarjetas</a> abierta en la página publicada (no en localhost): 4 hojas carta a color. Recortar y meter en sobres. Imprimir 2 o 3 sobres de repuesto.</li>
+        <li>Imprimir <b>un sobre por equipo</b> desde <a href="tarjetas.html">Tarjetas</a> abierta en la página publicada (no en localhost): 4 hojas carta a color. Recortar y meter en sobres. Imprimir 2 o 3 de repuesto.</li>
+        <li>Imprimir los <b>carteles “¿Atorados?”</b> de las 4 estaciones y pegarlos en la mesa de cada taller.</li>
         <li>En cada tablet: abrir la app, dar permiso de cámara, probar que suena la voz (volumen al máximo) y “Agregar a la pantalla de inicio”. Desactivar el bloqueo automático de pantalla.</li>
-        <li>Probar el Wi-Fi del salón con las tablets: deben abrir <span class="mono">mparra37.github.io</span> y la dirección del Worker.</li>
-        <li>Proyector: abrir la Sala de control, tocar <b>Activar sonido</b> y el botón de pantalla completa.</li>
-        <li>Una persona del staff con el panel abierto (celular o laptop) y el PIN.</li>
-        <li>Imprimir los <b>carteles “¿Atorados?”</b> de las 4 estaciones (al final de Tarjetas) y pegarlos en la mesa de cada taller.</li>
-        <li>Si quieren silencio total en algún momento, en el panel pueden pausar el chat con IA.</li>
+        <li>Si van a usar el Cerebro IA: el Worker de Cloudflare está desplegado con la API key y su dirección está en <span class="mono">js/config.js</span> (ver LEEME.md). En el panel del staff debe decir “IA: configurada”.</li>
+        <li>Probar el Wi-Fi del salón con las tablets (para la IA). Sin internet, JARVIS funciona igual con su cerebro básico.</li>
+        <li>Laptop del presentador con el PowerPoint y, si se puede, una tablet conectada al proyector para la demostración.</li>
       </ul>
     </section>
 
     <section class="panel">
       <h2>Guion de la sesión (60 minutos)</h2>
+      <p class="tenue" style="margin-top:0">Las notas de cada diapositiva del PowerPoint traen lo mismo.</p>
       <table>
-        <thead><tr><th>Hora</th><th>Qué pasa</th><th>Qué decir (ejemplo)</th></tr></thead>
+        <thead><tr><th>Hora</th><th>Diapositivas</th><th>Qué pasa</th></tr></thead>
         <tbody>
-          <tr><td class="hora">9:00</td><td>Bienvenida. En el proyector: la Sala de control vacía (“0 / 0 JARVIS en línea”).</td><td class="di">“Ultrón ya está en el sistema. Para vencerlo, cada equipo va a necesitar su propio asistente. Hoy no vamos a usar ChatGPT ni ninguna otra IA: vamos a construir la nuestra.”</td></tr>
-          <tr><td class="hora">9:05</td><td>Equipos. Los que vienen formados se sientan juntos; el staff completa mesas de 5. En cada mesa: tablet + sobre. Una persona toca <b>Crear equipo</b>; el equipo aparece en la pantalla.</td><td class="di">“En cuanto registren su equipo, lo van a ver aparecer aquí arriba.”</td></tr>
-          <tr><td class="hora">9:10</td><td>Demostración en vivo con una tablet: escanear una tarjeta de voz y que JARVIS hable. Mostrar que en la tablet del equipo, tocando el nombre (arriba a la derecha), sale un QR para que se unan con sus celulares.</td><td class="di">“Un asistente como JARVIS no es magia: tiene partes. Cada tarjeta es una parte. Escanéenlas, pruébenlas y quédense con la que les guste. Pueden usar sus celulares también.”</td></tr>
-          <tr><td class="hora">9:15</td><td>Construcción libre (25 min). Escanean, prueban, cambian. La tableta muestra qué módulos faltan. Caminen por las mesas: ayuden con la <b>directiva principal</b> (Personalidad) y con la Memoria.</td><td class="di">Cortes cada 8 minutos: “Ya hay 5 equipos con personalidad. Si no han escrito su directiva principal, ese es el paso más importante.”</td></tr>
-          <tr><td class="hora">9:40</td><td>Encendido. Con Identidad, Voz, Núcleo y Personalidad ya pueden tocar <b>Iniciar JARVIS</b>: su JARVIS se presenta y aparece en grande en la Sala de control. Elijan 3 o 4 equipos al azar y háganles la misma pregunta.</td><td class="di">“Le voy a preguntar lo mismo a varios: ¿cómo vencemos a Ultrón?” (cada uno contesta con su personalidad: así ven que el prompt cambia el comportamiento).</td></tr>
-          <tr><td class="hora">9:50</td><td>JARVIS en los talleres: Bitácora (las piezas de cada estación), Puntos (puntaje y código de cada taller), Cámara y Chat. La batería es limitada.</td><td class="di">“JARVIS les da pistas, no respuestas. Y tiene batería limitada: úsenlo bien.”</td></tr>
-          <tr><td class="hora">9:58</td><td>Foto del equipo con su JARVIS (desde la app) y salida a la Ronda 1. Desde el panel pueden mandar el anuncio “Es hora de ir a los talleres”.</td><td></td></tr>
+          <tr><td class="hora">9:00</td><td>1–2</td><td>Bienvenida y la misión. <span class="di">“Ultrón ya está en el sistema. Hoy no vamos a usar ChatGPT ni ninguna otra IA: vamos a construir la nuestra.”</span></td></tr>
+          <tr><td class="hora">9:05</td><td>3–5</td><td>Los 3 pasos (crear, escanear, encender), qué hay en la mesa y cómo escanear. Demostración: escanear una tarjeta de voz y que JARVIS hable.</td></tr>
+          <tr><td class="hora">9:10</td><td>6–8</td><td>Los 8 módulos, la directiva principal y los dos cerebros.</td></tr>
+          <tr><td class="hora">9:15</td><td>9</td><td><b>Construcción libre (25 min).</b> Caminen por las mesas; ayuden con la directiva principal. Cortes cada 8 minutos: <span class="di">“Si no han escrito su directiva principal, ese es el paso más importante.”</span></td></tr>
+          <tr><td class="hora">9:40</td><td>10–11</td><td>Encendido de todos a la vez. Luego 3 o 4 equipos le preguntan a su JARVIS frente a todos: <span class="di">“¿Cómo vencemos a Ultrón?”</span> Misma pregunta, respuestas distintas: eso hace el prompt.</td></tr>
+          <tr><td class="hora">9:47</td><td>12</td><td>¿Quién instaló el Módulo legendario? Era la trampa de Ultrón: lección de <b>quishing</b>.</td></tr>
+          <tr><td class="hora">9:50</td><td>13–15</td><td>Lo que programaron (y que se estudia en ITC), cómo usar JARVIS en los talleres y la agenda del día.</td></tr>
+          <tr><td class="hora">9:58</td><td>16</td><td>Foto del equipo con su JARVIS (pestaña Cámara) y salida a la Ronda 1.</td></tr>
         </tbody>
       </table>
-      <p class="tenue">En el sobre viene la tarjeta <b>★ Módulo legendario</b>: es una trampa de Ultrón. Si la escanean, su JARVIS se “infecta” unos segundos y luego explica qué es el <b>quishing</b> (QR maliciosos). Si nadie la escanea, al final pregunten: “¿alguien instaló el Módulo legendario?”.</p>
     </section>
 
     <section class="panel">
@@ -95,7 +94,8 @@
           <tr><td class="mono">P1–P6</td><td>Personalidad + directiva principal</td><td>El prompt de sistema</td></tr>
           <tr><td class="mono">MEM</td><td>Memoria: integrantes, prepa, algo del equipo</td><td>Contexto: la IA solo sabe lo que se le manda</td></tr>
           <tr><td class="mono">ESC</td><td>Escudo: reglas del staff + regla del equipo</td><td>Capas de reglas y prompt injection</td></tr>
-          <tr><td class="mono">H1–H4</td><td>Habilidades: Bitácora, Cámara, Puntos, Chat con IA</td><td>Módulos de una app, bases de datos, API keys</td></tr>
+          <tr><td class="mono">H1–H3</td><td>Habilidades: Bitácora, Cámara, Puntos</td><td>Módulos de una app</td></tr>
+          <tr><td class="mono">H4</td><td>Cerebro IA</td><td>Chatbot de reglas contra modelo de lenguaje; API keys</td></tr>
           <tr><td class="mono">X1–X3</td><td>Acciones: chiste, dato curioso, modo fiesta</td><td>(diversión, se pueden escanear muchas veces)</td></tr>
           <tr><td class="mono">ULT</td><td>★ Módulo legendario (trampa de Ultrón)</td><td>Quishing: no escanear QR desconocidos</td></tr>
         </tbody>
@@ -106,11 +106,9 @@
       <h2>JARVIS en los otros talleres</h2>
       <p>JARVIS ayuda, pero ningún taller depende de él: si un equipo se olvida de usarlo, el taller sigue igual.</p>
       <ul>
-        <li><b>Pistas por estación:</b> en la pestaña Hablar eligen dónde están (Desarrollo móvil, Algoritmos, Ciberseguridad o Redes) y les aparece de qué trata el taller, un botón para abrirlo, pistas en orden (primero el concepto, luego dónde buscar; nunca la respuesta) y los conceptos clave. Funciona sin internet.</li>
-        <li><b>Con chat:</b> la IA sabe en qué estación están y les ayuda con ese taller. No conoce las claves de ningún reto.</li>
+        <li><b>Pistas por estación:</b> en la pestaña Hablar eligen dónde están y aparece de qué trata el taller, un botón para abrirlo, pistas en orden (primero el concepto, luego dónde buscar; nunca la respuesta) y los conceptos clave. Funciona sin internet. También pueden escribir “pista” en el chat.</li>
         <li><b>Recordatorios suaves:</b> si la app está abierta, al empezar cada ronda pregunta en qué estación están y, en los últimos minutos, les recuerda anotar la pieza y los puntos.</li>
-        <li><b>Carteles “¿Atorados?”:</b> el QR de cada mesa abre las pistas de esa estación (también en un celular que no esté unido a un equipo).</li>
-        <li><b>Desde el panel:</b> hay anuncios listos para recordarles que JARVIS tiene pistas y que anoten su pieza.</li>
+        <li><b>Carteles “¿Atorados?”:</b> el QR de cada mesa abre las pistas de esa estación.</li>
       </ul>
       <p class="tenue">Pídanle a cada responsable de taller que mencione al inicio: “si se atoran, su JARVIS tiene pistas”.</p>
     </section>
@@ -121,25 +119,23 @@
         <tbody>
           <tr><td><b>No abre la cámara</b></td><td>Den permiso de cámara al navegador. Mientras, toquen “Escribir el código de la tarjeta”: cada tarjeta trae su código en la esquina (V3, P1…).</td></tr>
           <tr><td><b>JARVIS no suena</b></td><td>Suban el volumen; en iPhone quiten el modo silencio. Toquen la pantalla una vez (los navegadores no dejan hablar antes del primer toque).</td></tr>
-          <tr><td><b>Punto amarillo arriba</b></td><td>Sin conexión. JARVIS sigue funcionando y guarda todo; lo manda solo cuando vuelve el internet. El chat con IA necesita internet.</td></tr>
-          <tr><td><b>Se perdió el código del equipo</b></td><td>En el panel del staff aparece el código de cada equipo.</td></tr>
-          <tr><td><b>“Sin batería”</b></td><td>En el panel: +5 a ese equipo o a todos.</td></tr>
-          <tr><td><b>Un texto inapropiado</b></td><td>La app bloquea groserías comunes. Si algo se cuela, en el panel pueden ver los datos del equipo y borrarlo (tendrán que crear otro).</td></tr>
-          <tr><td><b>“La IA no está configurada”</b></td><td>Falta la API key en el Worker (LEEME.md, paso 2). Todo lo demás funciona sin ella.</td></tr>
-          <tr><td><b>Algo raro con la IA</b></td><td>Pausen el chat desde el panel; la app sigue funcionando.</td></tr>
+          <tr><td><b>La IA no contesta</b></td><td>No pasa nada: JARVIS avisa y contesta con su cerebro básico. Revisen el internet o el panel del staff.</td></tr>
+          <tr><td><b>“Se acabaron las preguntas de IA”</b></td><td>En el panel del staff: suban la batería por tablet o “Recargar todas las tablets”.</td></tr>
+          <tr><td><b>Algo raro con la IA</b></td><td>En el panel, pongan la IA en pausa: todas las tablets siguen con el cerebro básico.</td></tr>
+          <tr><td><b>Quieren empezar de nuevo</b></td><td>Toquen el nombre del equipo (arriba a la derecha) → “Borrar este JARVIS y empezar de nuevo”.</td></tr>
+          <tr><td><b>Un texto inapropiado</b></td><td>La app bloquea groserías comunes y la IA tiene reglas del staff que nadie puede cambiar.</td></tr>
         </tbody>
       </table>
     </section>
 
     <section class="panel" id="taller-vr">
       <h2>JARVIS ya armado · Taller VR Ghost Network</h2>
-      <p><a href="taller-vr.html">taller-vr.html</a> es un JARVIS listo para la estación de Redes (pensado para una tablet en la mesa del facilitador):</p>
+      <p><a href="taller-vr.html">taller-vr.html</a> es un JARVIS listo para la estación de Redes (una tablet en la mesa del facilitador):</p>
       <ul>
-        <li><b>Juegos:</b> el video de cada minijuego, “Explicar” (JARVIS lo explica en voz alta), los pasos, las reglas, las dudas frecuentes y un cronómetro de la ronda (avisa a los 30 s y al terminar).</li>
-        <li><b>Guion:</b> los 7 momentos del taller de 40 minutos; “Decir” hace que JARVIS lo anuncie al grupo.</li>
-        <li><b>Resultados:</b> nombre del equipo, juego y puntaje. Si escriben el código que da el visor, JARVIS lo verifica y llena el juego y el puntaje. Si el equipo da su código de JARVIS, el resultado también aparece en los Puntos de su JARVIS. Tabla por equipo con las pistas ganadas y exportar a CSV.</li>
-        <li><b>Preguntas:</b> con la API key contesta con IA (sabe las reglas de los 4 juegos y nunca da la IP ni el GPS). Sin API key o sin internet, contesta con las dudas frecuentes.</li>
-        <li>Funciona <b>sin servidor</b> para pruebas piloto: los resultados se guardan en la tablet.</li>
+        <li><b>Juegos:</b> el video de cada minijuego, “Explicar” (JARVIS lo explica en voz alta), los pasos, las reglas, las dudas frecuentes y un cronómetro de la ronda.</li>
+        <li><b>Guion:</b> los momentos del taller de 40 minutos; “Decir” hace que JARVIS lo anuncie al grupo.</li>
+        <li><b>Resultados:</b> equipo, juego y puntaje. Si escriben el código del visor, JARVIS lo verifica y llena el juego y el puntaje. Tabla por equipo con las pistas ganadas y exportar a CSV.</li>
+        <li><b>Preguntas:</b> con la API key contesta con IA; sin ella o sin internet, contesta con las dudas frecuentes.</li>
       </ul>
     </section>
   </main>

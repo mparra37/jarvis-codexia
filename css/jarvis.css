@@ -203,6 +203,7 @@ h3 { font-size: 15px; text-transform: uppercase; color: var(--acento); }
 .historial { display: grid; gap: 8px; margin-top: 14px; }
 .burbuja { padding: 10px 14px; border-radius: 14px; max-width: 88%; font-size: 17px; }
 .burbuja.yo { justify-self: end; background: rgba(63, 208, 255, 0.15); border: 1px solid rgba(63, 208, 255, 0.3); }
+.burbuja .cerebro-tag { display: block; margin-top: 4px; font-size: 12px; color: var(--tenue); }
 .burbuja.jarvis { justify-self: start; background: rgba(0, 0, 0, 0.5); border: 1px solid var(--borde); }
 
 .lista { display: grid; gap: 10px; }

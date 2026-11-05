@@ -332,7 +332,7 @@ async function cargarResultados() {
       return;
     } catch (e) { /* sin conexión: lo local */ }
   }
-  resultados = locales().map((x) => ({ ...x, codigo_equipo: x.codigoEquipo }));
+  resultados = locales();
 }
 
 function resumenPorEquipo() {
@@ -352,10 +352,7 @@ async function pintarResultados(cont) {
   const nombres = [...new Set(resultados.map((r) => r.equipo))];
   cont.innerHTML = `<form class="panel" id="f-res">
       <h2>Registrar resultado</h2>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <label class="campo" style="margin:0"><span>Equipo</span><input type="text" id="r-equipo" list="equipos-lista" maxlength="40" required autocomplete="off"></label>
-        <label class="campo" style="margin:0"><span>Código JARVIS (opcional)</span><input type="text" id="r-cod-eq" maxlength="4" placeholder="AB23" autocomplete="off" style="text-transform:uppercase;font-family:var(--mono)"></label>
-      </div>
+      <label class="campo" style="margin:0"><span>Equipo</span><input type="text" id="r-equipo" list="equipos-lista" maxlength="40" required autocomplete="off"></label>
       <datalist id="equipos-lista">${nombres.map((n) => `<option value="${esc(n)}">`).join('')}</datalist>
       <label class="campo"><span>Código del visor (opcional, llena juego y puntaje)</span><input type="text" id="r-codigo" maxlength="9" placeholder="7KQ2-9XMB" autocomplete="off" style="text-transform:uppercase;font-family:var(--mono)"></label>
       <p id="r-info" class="tenue" style="margin:0 0 6px;font-size:15px"></p>
@@ -365,7 +362,7 @@ async function pintarResultados(cont) {
       </div>
       <label class="campo"><span>Nota (opcional)</span><input type="text" id="r-nota" maxlength="120" autocomplete="off"></label>
       <button class="btn btn-primario btn-grande" style="width:100%">Guardar resultado</button>
-      <p class="tenue" style="font-size:14px;margin:8px 0 0">${hayServidor() ? 'Se guarda en el servidor (y en los puntos del equipo si dan su código JARVIS).' : 'Sin servidor: se guarda en esta tablet. Pueden exportarlo a CSV.'}</p>
+      <p class="tenue" style="font-size:14px;margin:8px 0 0">${hayServidor() ? 'Se guarda en el servidor y en esta tablet.' : 'Sin servidor: se guarda en esta tablet. Pueden exportarlo a CSV.'}</p>
     </form>
     <section class="panel" style="margin-top:12px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0">Por equipo</h2><div class="fila-botones"><button class="btn btn-chico" id="r-csv">Exportar CSV</button><button class="btn btn-chico" id="r-actualizar">Actualizar</button></div></div>
@@ -396,7 +393,6 @@ async function pintarResultados(cont) {
       id: `r${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`,
       t: Date.now(),
       equipo,
-      codigoEquipo: cont.querySelector('#r-cod-eq').value.trim().toUpperCase(),
       juego: nombreJuego,
       puntaje: Math.max(0, Math.round(Number(cont.querySelector('#r-puntaje').value) || 0)),
       codigo: lectura ? lectura.codigo : codigo.value.trim().toUpperCase(),
@@ -404,12 +400,10 @@ async function pintarResultados(cont) {
     };
     registro.valido = Boolean(lectura && lectura.valido && lectura.puntaje === registro.puntaje);
     let enviado = false;
-    let enEquipo = false;
     if (hayServidor()) {
       try {
-        const r = await llamar('POST', '/api/vr/resultados', registro);
+        await llamar('POST', '/api/vr/resultados', registro);
         enviado = true;
-        enEquipo = r.enEquipo;
       } catch (e) {
         if (e.status && e.status !== 0) { aviso(e.message, { mal: true }); return; }
       }
@@ -418,7 +412,7 @@ async function pintarResultados(cont) {
     sonido('instalar');
     const gano = j && registro.puntaje >= j.minimo;
     decir(`Registrado: ${equipo}, ${registro.puntaje} en ${j ? j.nombre.split(' · ').pop() : nombreJuego}. ${gano ? '¡Con eso ganaron su pista!' : `Para la pista necesitan ${j ? j.minimo : 'más'} ${j ? j.unidad : 'puntos'}.`}`);
-    aviso(enviado ? (enEquipo ? 'Guardado (también en el JARVIS del equipo)' : 'Guardado en el servidor') : (hayServidor() ? 'Sin conexión: guardado en la tablet, se manda después' : 'Guardado en la tablet'));
+    aviso(enviado ? 'Guardado en el servidor' : (hayServidor() ? 'Sin conexión: guardado en la tablet, se manda después' : 'Guardado en la tablet'));
     cont.querySelector('#r-puntaje').value = '';
     codigo.value = '';
     cont.querySelector('#r-nota').value = '';
@@ -468,8 +462,8 @@ function pintarTablas(cont) {
 }
 
 function exportarCSV() {
-  const filas = [['Hora', 'Equipo', 'Código JARVIS', 'Juego', 'Puntaje', 'Código VR', 'Válido', 'Nota']];
-  [...resultados].sort((a, b) => a.t - b.t).forEach((x) => filas.push([new Date(x.t).toLocaleString('es-MX'), x.equipo, x.codigo_equipo || x.codigoEquipo || '', x.juego, x.puntaje, x.codigo, x.valido ? 'sí' : 'no', x.nota || '']));
+  const filas = [['Hora', 'Equipo', 'Juego', 'Puntaje', 'Código VR', 'Válido', 'Nota']];
+  [...resultados].sort((a, b) => a.t - b.t).forEach((x) => filas.push([new Date(x.t).toLocaleString('es-MX'), x.equipo, x.juego, x.puntaje, x.codigo, x.valido ? 'sí' : 'no', x.nota || '']));
   const texto = filas.map((f) => f.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([`﻿${texto}`], { type: 'text/csv;charset=utf-8' }));

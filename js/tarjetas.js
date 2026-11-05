@@ -29,8 +29,8 @@ function tarjeta(codigo, base) {
       <div class="franja" style="background:#03060b"><span>J.A.R.V.I.S.</span>${svgIcono('qr')}</div>
       <div class="nombre" style="text-align:center">¿Cómo se usa?</div>
       <ol>
-        <li>Abran JARVIS con este QR (o en la tablet).</li>
-        <li>Una persona crea el equipo; los demás se unen con el código.</li>
+        <li>Abran JARVIS en la tablet (o con este QR).</li>
+        <li>Toquen <b>Crear nuestro JARVIS</b> y escriban el nombre del equipo.</li>
         <li>Toquen <b>Escanear tarjeta</b> y apunten a una tarjeta.</li>
         <li>Pueden cambiar de opinión: escaneen otra.</li>
         <li>Con Identidad, Voz, Núcleo y Personalidad, ¡enciéndanlo!</li>

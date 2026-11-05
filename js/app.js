@@ -1,14 +1,17 @@
 /* JARVIS · la app de cada equipo
  *
- * Vistas: inicio (crear o unirse) → taller (escanear tarjetas e instalar módulos) → JARVIS encendido
- * (hablar, bitácora, puntos, cámara, módulos, ficha). Todo el estado vive en estado.js.
+ * Vistas: inicio (crear su JARVIS) → taller (escanear tarjetas e instalar módulos) → JARVIS encendido
+ * (hablar, bitácora, puntos, cámara, módulos, ficha). Cada tablet tiene su propio JARVIS (estado.js).
+ * Dos cerebros: el básico (respuestas pre-escritas, cerebro.js) siempre funciona; el Cerebro IA
+ * (tarjeta H4) pregunta al Worker y, si falla, contesta el básico.
  */
 import {
   MODULOS, MODULO, VOCES, NUCLEOS, AMBIENTES, COLORES, HABILIDADES, HABILIDAD_POR_ID, TARJETAS, PERSONALIDADES,
   SUGERENCIAS, ESTACIONES, ESTACIONES_PUNTOS, CHISTES, DATOS, icono, leerQR, alAzar, colorTarjeta,
 } from './datos.js';
 import { REGLAS_FIJAS, rellenar } from './personalidades.js';
-import { estado } from './estado.js';
+import { estado, dispositivo } from './estado.js';
+import { responder } from './cerebro.js';
 import { llamar, hayServidor } from './api.js';
 import { CONFIG } from './config.js';
 import { $, $$, esc, modal, confirmar, aviso, hora, qrSVG, mantenerPantalla } from './ui.js';
@@ -29,6 +32,8 @@ let vista = '';
 let pestana = 'hablar';
 let historial = [];
 let esperandoIA = false;
+let restantesIA = null; // preguntas de IA que le quedan hoy a esta tablet (lo dice el Worker)
+let iaFallaHasta = 0;    // si la IA falló, se usa el cerebro básico un rato sin volver a intentar
 const NECESARIOS = MODULOS.filter((m) => m.necesario).map((m) => m.id);
 
 const NEUTRAS = {
@@ -90,22 +95,41 @@ function montarNucleo() {
 // primer toque: desbloquear voz y audio (iPhone y Chrome lo piden)
 document.addEventListener('pointerdown', () => { desbloquearVoz(); desbloquearAudio(); mantenerPantalla(); }, { once: true });
 
+// ---------- cerebros ----------
+/** ¿Este JARVIS tiene el Cerebro IA (tarjeta H4) y hay servidor configurado? */
+function cerebroIA() { return tieneHabilidad('chat') && CONFIG.IA !== 'basico' && hayServidor(); }
+function usarIA() { return cerebroIA() && Date.now() > iaFallaHasta && restantesIA !== 0; }
+
+/** Lo que el Worker necesita para armar el prompt (se manda con cada pregunta: no hay registro). */
+function datosParaIA() {
+  const e = eq();
+  return {
+    nombre: e.nombre,
+    jarvis: e.jarvis,
+    personalidad: instalado('personalidad') ? e.personalidad : {},
+    memoria: instalado('memoria') ? e.memoria : {},
+    escudo: e.escudo || {},
+    bitacora: e.bitacora || {},
+  };
+}
+
 // ---------- barra superior ----------
 function pintarBarra() {
   const e = eq();
   $('#chip-equipo').hidden = !e;
   if (!e) { $('#bateria').hidden = true; return; }
   $('#chip-nombre').textContent = e.nombre;
-  $('#chip-codigo').textContent = e.codigo;
+  const ia = cerebroIA();
+  $('#chip-codigo').textContent = ia ? 'IA' : '';
   const punto = $('#punto');
-  punto.className = `punto-conexion ${estado.conexion === 'ok' ? 'ok' : estado.conexion === 'sin-conexion' ? 'mal' : ''}`;
-  punto.title = { ok: 'Conectado', 'sin-conexion': 'Sin conexión: se guarda aquí y se manda después', 'sin-servidor': 'Sin servidor: todo se guarda en este aparato', conectando: 'Conectando…' }[estado.conexion] || '';
+  punto.className = `punto-conexion ${ia ? (Date.now() > iaFallaHasta ? 'ok' : 'mal') : ''}`;
+  punto.title = ia ? 'Cerebro IA (con el básico de respaldo)' : 'Cerebro básico';
   const bat = $('#bateria');
-  const mostrar = tieneHabilidad('chat') && typeof estado.energia === 'number' && hayServidor();
+  const mostrar = ia && typeof restantesIA === 'number';
   bat.hidden = !mostrar;
-  if (mostrar) bat.innerHTML = `${icono('bateria')} ${estado.energia}`;
+  if (mostrar) bat.innerHTML = `${icono('bateria')} ${restantesIA}`;
 }
-$('#chip-equipo').addEventListener('click', () => abrirUnir());
+$('#chip-equipo').addEventListener('click', () => abrirEquipo());
 
 // ---------- vistas ----------
 function render(forzar = false) {
@@ -138,7 +162,7 @@ function actualizar() {
     pintarRecordatorio();
     const cont = $('#pestana');
     if (cont && !cont.contains(document.activeElement) && pestana !== 'camara' && pestana !== 'hablar') pintarPestana();
-    if (pestana === 'hablar') { pintarBateriaChat(); }
+    if (pestana === 'hablar') pintarCerebro();
   }
 }
 
@@ -155,16 +179,13 @@ function renderInicio() {
     <canvas id="nucleo"></canvas>
     <h1>PROTOCOLO <b>J.A.R.V.I.S.</b></h1>
     <p class="sub">Ultrón ya está en el sistema. Armen su propio asistente de inteligencia artificial con las tarjetas de su sobre.</p>
-    ${pendiente ? `<p class="panel" style="margin:0">Escanearon la tarjeta <b>${esc(pendiente.nombre)}</b>. Primero creen su equipo o únanse a él.</p>` : ''}
+    ${pendiente ? `<p class="panel" style="margin:0">Escanearon la tarjeta <b>${esc(pendiente.nombre)}</b>. Primero creen su JARVIS.</p>` : ''}
     <div class="botones">
-      <button class="btn btn-primario btn-grande" data-accion="crear">Crear equipo</button>
-      <button class="btn btn-grande" data-accion="unirse">Unirme a mi equipo</button>
+      <button class="btn btn-primario btn-grande" data-accion="crear">Crear nuestro JARVIS</button>
     </div>
-    <p class="tenue" style="font-size:15px;max-width:380px">¿Su equipo ya existe en otra tablet? Toquen <b>Unirme</b> y escaneen el QR que aparece en ella.</p>
-    <p class="tenue" style="font-size:13px">${hayServidor() ? '' : 'Modo sin servidor: todo se guarda en este aparato.'}</p>
+    <p class="tenue" style="font-size:15px;max-width:380px">Su JARVIS se guarda en esta tablet. Cada tablet arma el suyo.</p>
   </div></section>`;
   app.querySelector('[data-accion="crear"]').addEventListener('click', abrirCrear);
-  app.querySelector('[data-accion="unirse"]').addEventListener('click', () => abrirUnirse());
 }
 
 function htmlEscenario() {
@@ -186,7 +207,6 @@ function renderTaller() {
     <div>${htmlEscenario()}
       <div class="fila-botones" style="justify-content:center;margin-top:10px">
         <button class="btn btn-chico" data-accion="probar">${icono('altavoz')} Probar</button>
-        <button class="btn btn-chico" data-accion="unir">${icono('qr')} Unir celulares</button>
       </div>
     </div>
     <div class="panel">
@@ -202,7 +222,6 @@ function renderTaller() {
     </div>
   </section>`;
   app.querySelector('[data-accion="probar"]').addEventListener('click', () => decir(frase('saludo'), { sonar: true }));
-  app.querySelector('[data-accion="unir"]').addEventListener('click', abrirUnir);
   app.querySelector('[data-accion="escanear"]').addEventListener('click', abrirEscanerTarjetas);
   app.querySelector('[data-accion="codigo"]').addEventListener('click', abrirCodigoTarjeta);
   app.querySelector('[data-accion="encender"]').addEventListener('click', encender);
@@ -250,95 +269,52 @@ function pintarModulos() {
   }
 }
 
-// ---------- crear y unirse ----------
+// ---------- crear ----------
 function abrirCrear() {
-  const m = modal(`<h2>Crear equipo</h2>
-    <p class="tenue">Solo una persona del equipo lo crea. Los demás se unen después con el código o el QR.</p>
+  const m = modal(`<h2>Crear su JARVIS</h2>
+    <p class="tenue">Escriban el nombre de su equipo. Su JARVIS se guarda en esta tablet.</p>
     <form id="f-crear">
       <label class="campo"><span>Nombre del equipo</span><input type="text" id="f-nombre" maxlength="40" required autocomplete="off" placeholder="Ej. Los Bits"></label>
       <button class="btn btn-primario btn-grande" style="width:100%">Crear</button>
     </form>`);
   const input = m.el.querySelector('#f-nombre');
   setTimeout(() => input.focus(), 50);
-  m.el.querySelector('#f-crear').addEventListener('submit', async (ev) => {
+  m.el.querySelector('#f-crear').addEventListener('submit', (ev) => {
     ev.preventDefault();
     const nombre = input.value.trim();
     if (!nombre) return;
     if (!textoLimpio(nombre)) { aviso('Ese nombre no se puede usar. Escojan otro.', { mal: true }); return; }
-    const boton = m.el.querySelector('button.btn-primario');
-    boton.disabled = true;
-    boton.textContent = 'Creando…';
-    try {
-      await estado.crear(nombre);
-      m.cerrar();
-      sonido('instalar');
-      render(true);
-      decir(`Equipo ${nombre} registrado. Escaneen la tarjeta de Identidad para darme un nombre.`);
-      aplicarTarjetaPendiente();
-    } catch (e) {
-      boton.disabled = false;
-      boton.textContent = 'Crear';
-      aviso(e.message || 'No se pudo crear el equipo.', { mal: true });
-    }
-  });
-}
-
-function abrirUnirse(codigoInicial = '') {
-  const m = modal(`<h2>Unirme a mi equipo</h2>
-    <p class="tenue">En la tablet del equipo toquen el nombre del equipo (arriba a la derecha): ahí aparece el código y un QR.</p>
-    <button class="btn btn-primario btn-grande" style="width:100%" data-escanear>${icono('qr')} Escanear QR del equipo</button>
-    <form id="f-unirse" style="margin-top:14px">
-      <label class="campo"><span>O escriban el código (4 letras)</span><input type="text" id="f-codigo" maxlength="4" autocomplete="off" autocapitalize="characters" style="text-transform:uppercase;letter-spacing:.3em;font-family:var(--mono);font-size:26px" value="${esc(codigoInicial)}"></label>
-      <button class="btn btn-grande" style="width:100%">Unirme</button>
-    </form>`);
-  const unir = async (codigo) => {
-    codigo = String(codigo || '').trim().toUpperCase();
-    if (codigo.length !== 4) { aviso('El código tiene 4 letras o números.', { mal: true }); return; }
-    if (!hayServidor()) { aviso('Sin servidor no se pueden unir aparatos.', { mal: true }); return; }
-    try {
-      await estado.unirse(codigo);
-      m.cerrar();
-      sonido('instalar');
-      render(true);
-      decir(frase('saludo'));
-      aplicarTarjetaPendiente();
-    } catch (e) {
-      aviso(e.status === 404 ? 'No existe un equipo con ese código.' : e.status === 0 ? 'Sin conexión. Revisen el internet.' : e.message, { mal: true });
-    }
-  };
-  m.el.querySelector('#f-unirse').addEventListener('submit', (ev) => { ev.preventDefault(); unir(m.el.querySelector('#f-codigo').value); });
-  m.el.querySelector('[data-escanear]').addEventListener('click', () => {
+    estado.crear(nombre);
+    historial = [];
     m.cerrar();
-    escanear((texto) => {
-      const r = leerQR(texto);
-      if (r.tipo === 'unirse') { unir(r.codigo); return true; }
-      aviso('Ese no es el QR de un equipo.', { mal: true });
-      return false;
-    }, 'Escaneen el QR que aparece en la tablet de su equipo.');
+    sonido('instalar');
+    render(true);
+    decir(`Equipo ${nombre}, bienvenidos. Escaneen la tarjeta de Identidad para darme un nombre.`);
+    aplicarTarjetaPendiente();
   });
-  if (codigoInicial) unir(codigoInicial);
 }
 
-function abrirUnir() {
+/** Datos del equipo: cambiar el nombre o borrar el JARVIS de esta tablet. */
+function abrirEquipo() {
   const e = eq();
   if (!e) return;
-  const url = new URL(location.href);
-  url.search = `?unirse=${e.codigo}`;
-  url.hash = '';
-  const sinServidor = !hayServidor();
   const m = modal(`<h2>${esc(e.nombre)}</h2>
-    ${sinServidor
-    ? '<p>Este JARVIS funciona sin servidor: no se pueden unir otros aparatos. Pídanle al staff que configure el servidor.</p>'
-    : `<p class="tenue">Para usar su JARVIS en sus celulares, escaneen este QR con la cámara del celular o escriban el código en <b>Unirme a mi equipo</b>.</p>
-       <div class="centro" style="margin:12px 0"><div style="display:inline-block;padding:10px;background:#fff;border-radius:12px">${qrSVG(url.toString(), { tam: 220 })}</div></div>
-       <p class="centro mono" style="font-size:44px;letter-spacing:.3em;margin:0;color:var(--acento)">${esc(e.codigo)}</p>`}
+    <p class="tenue">Este JARVIS vive en esta tablet. Si se va el internet o cierran la página, no se pierde.</p>
+    <label class="campo"><span>Nombre del equipo</span><input type="text" id="e-nombre" maxlength="40" value="${esc(e.nombre)}" autocomplete="off"></label>
+    <div class="fila-botones"><button class="btn btn-primario" data-guardar>Guardar</button></div>
     <hr style="border:0;border-top:1px solid var(--borde);margin:18px 0">
-    <p class="tenue" style="font-size:15px">Estado: ${esc({ ok: 'conectado', 'sin-conexion': 'sin conexión (se guarda aquí y se manda después)', 'sin-servidor': 'sin servidor', conectando: 'conectando…' }[estado.conexion] || '')}</p>
-    <button class="btn-texto" data-salir>Salir del equipo en este aparato</button>`);
+    <p class="tenue" style="font-size:15px">Cerebro: ${cerebroIA() ? '✨ IA, con el 🧠 básico de respaldo' : '🧠 básico (respuestas escritas por personas)'}.</p>
+    <button class="btn-texto" data-salir>Borrar este JARVIS y empezar de nuevo</button>`);
+  m.el.querySelector('[data-guardar]').addEventListener('click', () => {
+    const nombre = m.el.querySelector('#e-nombre').value.trim();
+    if (!nombre) return;
+    if (!textoLimpio(nombre)) { aviso('Ese nombre no se puede usar.', { mal: true }); return; }
+    estado.cambiar({ nombre });
+    m.cerrar();
+    aviso('Guardado');
+  });
   m.el.querySelector('[data-salir]').addEventListener('click', async () => {
-    const ok = await confirmar(sinServidor || !estado.registrado
-      ? 'Este equipo solo está guardado en este aparato. Si salen, se pierde. ¿Salir de todos modos?'
-      : `¿Salir del equipo en este aparato? El equipo no se borra: pueden volver con el código ${e.codigo}.`, { si: 'Salir', peligro: true });
+    const ok = await confirmar('Se borra el JARVIS de esta tablet: módulos, bitácora y puntos (las fotos se quedan). ¿Borrar?', { si: 'Borrar', peligro: true });
     if (!ok) return;
     m.cerrar();
     callar();
@@ -375,7 +351,6 @@ function abrirEscanerTarjetas() {
   escanear((texto) => {
     const r = leerQR(texto);
     if (r.tipo === 'tarjeta') { usarTarjeta(r.codigo); return true; }
-    if (r.tipo === 'unirse') { aviso('Ese es el QR para unir celulares, no una tarjeta.'); return false; }
     aviso('Ese QR no es una tarjeta de JARVIS.', { mal: true });
     return false;
   });
@@ -675,9 +650,10 @@ async function encender() {
   sonido('arranque');
   // pedimos la presentación a la IA mientras corre la terminal
   let presentacion = null;
-  if (hayServidor() && estado.global.ia && estado.registrado) {
+  if (usarIA()) {
     presentacion = Promise.race([
-      llamar('POST', `/api/equipos/${e.codigo}/chat`, { tipo: 'presentacion' }).then((r) => r.texto).catch(() => null),
+      llamar('POST', '/api/chat', { tipo: 'presentacion', dispositivo: dispositivo(), jarvis: datosParaIA() }, { timeout: 9000 })
+        .then((r) => { if (typeof r.restantes === 'number') restantesIA = r.restantes; return r.texto; }).catch(() => null),
       new Promise((r) => setTimeout(() => r(null), 9000)),
     ]);
   }
@@ -691,7 +667,7 @@ async function encender() {
     [`> Memoria ................... ${instalado('memoria') ? `${(e.memoria.integrantes || []).length} integrantes` : 'NO INSTALADA'}`, instalado('memoria') ? 'ok' : 'no'],
     [`> Escudo de seguridad ....... ${instalado('escudo') ? 'ACTIVO' : 'NO INSTALADO'}`, instalado('escudo') ? 'ok' : 'no'],
     [`> Habilidades ............... ${Object.values(e.habilidades || {}).filter(Boolean).length}/4`, ''],
-    [`> Sala de control ........... ${estado.conexion === 'ok' ? 'CONECTADO' : 'SIN CONEXIÓN'}`, estado.conexion === 'ok' ? 'ok' : 'no'],
+    [`> Cerebro ................... ${cerebroIA() ? 'IA + BÁSICO' : 'BÁSICO'}`, 'ok'],
     ['> SISTEMA EN LÍNEA', 'ok'],
   ];
   const term = capa.querySelector('#terminal');
@@ -719,7 +695,7 @@ async function encender() {
     capa.remove();
     callar();
     render(true);
-    if (!historial.length) historial.push({ role: 'assistant', content: texto });
+    if (!historial.length) historial.push({ role: 'assistant', content: texto, cerebro: 'basico' });
     subtitulo(texto);
   };
   const boton = capa.querySelector('#continuar');
@@ -786,7 +762,6 @@ function pintarPestana() {
 const PREGUNTAS = ['¿Qué es una dirección IP?', 'Dame una pista para el taller de Redes', '¿Qué estudia alguien de ITC?', '¿Cómo sé si una contraseña es segura?', '¿Qué es un algoritmo?'];
 
 function pestanaHablar(cont) {
-  const conChat = tieneHabilidad('chat');
   const est = estacionActual();
   const preguntas = est ? AYUDA_ESTACIONES[est].preguntas : PREGUNTAS;
   cont.innerHTML = `
@@ -796,19 +771,18 @@ function pestanaHablar(cont) {
         ${ORDEN_ESTACIONES.map((id) => `<button class="chip ${est === id ? 'activo' : ''}" data-est="${id}">${esc(AYUDA_ESTACIONES[id].nombre)}</button>`).join('')}
       </div></div>
     <div id="ayuda"></div>
-    ${conChat ? '' : `<div class="panel" style="margin-bottom:10px"><p style="margin:0">🔒 Para hacerle preguntas, escaneen la tarjeta <b class="mono">H4 · Chat con IA</b>. Mientras, pueden pedirle pistas, un chiste o un dato.</p></div>`}
     <div class="chips" id="rapidas">
       <button class="chip" data-r="saludo">👋 Saludo</button>
       <button class="chip" data-r="chiste">😂 Chiste</button>
       <button class="chip" data-r="dato">💡 Dato curioso</button>
-      ${conChat ? preguntas.map((q) => `<button class="chip" data-q="${esc(q)}">${esc(q)}</button>`).join('') : ''}
+      ${preguntas.map((q) => `<button class="chip" data-q="${esc(q)}">${esc(q)}</button>`).join('')}
     </div>
-    ${conChat ? `<form class="chat-entrada" id="f-chat">
+    <form class="chat-entrada" id="f-chat">
       ${puedeEscuchar ? `<button type="button" class="btn-redondo" id="mic" aria-label="Hablar">${icono('mic')}</button>` : ''}
       <input type="text" id="pregunta" maxlength="300" placeholder="Pregúntale a ${esc(eq().jarvis.nombre)}…" autocomplete="off">
       <button class="btn-redondo" aria-label="Enviar">${icono('enviar')}</button>
     </form>
-    <p class="tenue" id="bateria-chat" style="font-size:14px;margin:6px 0 0"></p>` : ''}
+    <p class="tenue" id="cerebro-info" style="font-size:14px;margin:6px 0 0"></p>
     <div class="historial" id="historial"></div>`;
   cont.querySelector('#estaciones').addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-est]');
@@ -824,102 +798,114 @@ function pestanaHablar(cont) {
     else if (b.dataset.r) accion(b.dataset.r);
     else if (b.dataset.q) preguntar(b.dataset.q);
   });
-  if (conChat) {
-    cont.querySelector('#f-chat').addEventListener('submit', (ev) => {
-      ev.preventDefault();
-      const input = cont.querySelector('#pregunta');
-      const q = input.value.trim();
-      if (!q) return;
-      input.value = '';
-      preguntar(q);
+  cont.querySelector('#f-chat').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const input = cont.querySelector('#pregunta');
+    const q = input.value.trim();
+    if (!q) return;
+    input.value = '';
+    preguntar(q);
+  });
+  const mic = cont.querySelector('#mic');
+  if (mic) {
+    mic.addEventListener('click', async () => {
+      if (mic.classList.contains('escuchando')) { detenerEscucha(); return; }
+      callar();
+      mic.classList.add('escuchando');
+      subtitulo('Escuchando…');
+      const texto = await escuchar({ alParcial: (t) => subtitulo(`“${t}”`) });
+      mic.classList.remove('escuchando');
+      if (texto) preguntar(texto); else subtitulo('No te escuché bien. Intenta otra vez o escríbelo.');
     });
-    const mic = cont.querySelector('#mic');
-    if (mic) {
-      mic.addEventListener('click', async () => {
-        if (mic.classList.contains('escuchando')) { detenerEscucha(); return; }
-        callar();
-        mic.classList.add('escuchando');
-        subtitulo('Escuchando…');
-        const texto = await escuchar({ alParcial: (t) => subtitulo(`“${t}”`) });
-        mic.classList.remove('escuchando');
-        if (texto) preguntar(texto); else subtitulo('No te escuché bien. Intenta otra vez o escríbelo.');
-      });
-    }
-    pintarBateriaChat();
   }
+  pintarCerebro();
   pintarHistorial();
 }
 
-function pintarBateriaChat() {
-  const el = $('#bateria-chat');
-  if (!el) return;
-  if (!hayServidor()) el.textContent = 'Sin servidor: el chat con IA no está disponible.';
-  else if (!estado.global.ia) el.textContent = 'La IA todavía no está configurada por el staff.';
-  else if (!estado.global.chatActivo) el.textContent = 'El staff pausó el chat por un momento.';
-  else el.textContent = typeof estado.energia === 'number' ? `⚡ Batería: ${estado.energia} preguntas. JARVIS da pistas, no respuestas.` : '';
+/** Qué cerebro está usando JARVIS (debajo del chat). */
+function pintarCerebro() {
   pintarBarra();
+  const el = $('#cerebro-info');
+  if (!el) return;
+  if (cerebroIA()) {
+    el.innerHTML = Date.now() < iaFallaHasta
+      ? '✨ El Cerebro IA no responde por ahora: contesto con mi 🧠 cerebro básico.'
+      : restantesIA === 0
+        ? '✨ Se acabaron las preguntas de IA de hoy: sigo con mi 🧠 cerebro básico.'
+        : `✨ Cerebro IA${typeof restantesIA === 'number' ? ` · ⚡ ${restantesIA} preguntas por hoy` : ''}. JARVIS da pistas, no respuestas.`;
+  } else if (tieneHabilidad('chat')) {
+    el.innerHTML = '🧠 Cerebro básico: la IA no está disponible en esta tablet, así que contesto con textos escritos por personas.';
+  } else {
+    el.innerHTML = '🧠 Cerebro básico: busco palabras clave y contesto con textos escritos por personas. Escaneen la tarjeta <b class="mono">H4 · Cerebro IA</b> para conectarme a una inteligencia artificial.';
+  }
 }
 
 function pintarHistorial() {
   const h = $('#historial');
   if (!h) return;
-  h.innerHTML = historial.slice(-12).reverse().map((m) => `<div class="burbuja ${m.role === 'user' ? 'yo' : 'jarvis'}">${esc(m.content)}</div>`).join('');
+  h.innerHTML = historial.slice(-12).reverse().map((m) => `<div class="burbuja ${m.role === 'user' ? 'yo' : 'jarvis'}">${esc(m.content)}${m.role !== 'user' && m.cerebro ? `<span class="cerebro-tag">${m.cerebro === 'ia' ? '✨ IA' : '🧠 cerebro básico'}</span>` : ''}</div>`).join('');
 }
 
+/** Pregunta: primero el Cerebro IA (si lo tienen y funciona); si no, o si falla, el cerebro básico. */
 async function preguntar(texto) {
   if (esperandoIA) return;
-  if (!textoLimpio(texto)) { decir('Mejor preguntemos algo de la misión.'); return; }
   historial.push({ role: 'user', content: texto });
   pintarHistorial();
-  const normal = texto.toLowerCase();
-  const sinIA = !hayServidor() || !estado.global.ia || !estado.global.chatActivo;
-  if (sinIA) {
-    let r = frase('sinIA');
-    if (/chiste/.test(normal)) r = alAzar(CHISTES);
-    else if (/dato|curios/.test(normal)) r = alAzar(DATOS);
-    else if (!estado.global.chatActivo && hayServidor()) r = 'El staff pausó el chat por un momento. Intenten en un ratito.';
-    historial.push({ role: 'assistant', content: r });
-    pintarHistorial();
-    decir(r);
-    return;
+  let respuesta = null;
+  let cerebro = 'basico';
+  if (usarIA() && textoLimpio(texto)) {
+    esperandoIA = true;
+    subtitulo('Pensando…');
+    if (nucleo) nucleo.hablando(true);
+    try {
+      const mensajes = historial.slice(-10).map(({ role, content }) => ({ role, content }));
+      const r = await llamar('POST', '/api/chat', { dispositivo: dispositivo(), jarvis: datosParaIA(), mensajes, estacion: estacionActual() }, { timeout: 20000 });
+      respuesta = r.texto;
+      cerebro = 'ia';
+      if (typeof r.restantes === 'number') restantesIA = r.restantes;
+    } catch (e) {
+      if (typeof e.datos.restantes === 'number') restantesIA = e.datos.restantes;
+      if (e.status === 0 || e.status >= 500 || e.status === 429) iaFallaHasta = Date.now() + 60000;
+      const motivo = { 402: 'Se acabaron las preguntas de IA de hoy.', 403: 'El staff pausó la IA un momento.' }[e.status] || 'La IA no respondió.';
+      if (e.status !== 422) aviso(`${motivo} Contesto con mi cerebro básico.`, { ms: 3500 });
+    } finally {
+      esperandoIA = false;
+      if (nucleo) nucleo.hablando(false);
+    }
   }
-  esperandoIA = true;
-  subtitulo('Pensando…');
-  if (nucleo) nucleo.hablando(true);
-  try {
-    const r = await llamar('POST', `/api/equipos/${eq().codigo}/chat`, { mensajes: historial.slice(-10), estacion: estacionActual() }, { timeout: 35000 });
-    estado.energia = r.energia;
-    historial.push({ role: 'assistant', content: r.texto });
-    guardarHistorial();
-    pintarHistorial();
-    pintarBateriaChat();
-    if (nucleo) nucleo.hablando(false);
-    decir(r.texto);
-  } catch (e) {
-    if (nucleo) nucleo.hablando(false);
-    historial.pop();
-    pintarHistorial();
-    if (typeof e.datos.energia === 'number') { estado.energia = e.datos.energia; pintarBateriaChat(); }
-    const msg = e.status === 0 ? 'Sin conexión con el servidor. Revisen el internet.' : e.message;
-    subtitulo(msg);
-    aviso(msg, { mal: true, ms: 4000 });
-  } finally {
-    esperandoIA = false;
+  if (respuesta === null) {
+    const r = responder(texto, { equipo: eq(), estacion: estacionActual(), cerebroIA: cerebroIA() });
+    respuesta = r.accion === 'pista' ? pistaDeChat() : r.texto;
   }
+  historial.push({ role: 'assistant', content: respuesta, cerebro });
+  guardarHistorial();
+  pintarHistorial();
+  pintarCerebro();
+  decir(respuesta);
+}
+
+/** "Pista" dicha en el chat: la siguiente pista de la estación donde están. */
+function pistaDeChat() {
+  const id = estacionActual();
+  if (!id) return '¿En qué estación están? Elíjanla arriba, en ¿Dónde están ahora?, y les doy una pista de ese taller.';
+  const r = siguientePista(id);
+  const ayuda = $('#ayuda');
+  if (ayuda) montarAyuda(ayuda, id);
+  return r.texto;
 }
 
 function guardarHistorial() {
-  try { sessionStorage.setItem(`jarvis-chat-${eq().codigo}`, JSON.stringify(historial.slice(-20))); } catch (e) { /* nada */ }
+  try { sessionStorage.setItem(`jarvis-chat-${eq().creado}`, JSON.stringify(historial.slice(-20))); } catch (e) { /* nada */ }
 }
 function cargarHistorial() {
-  try { historial = JSON.parse(sessionStorage.getItem(`jarvis-chat-${eq().codigo}`) || '[]'); } catch (e) { historial = []; }
+  try { historial = JSON.parse(sessionStorage.getItem(`jarvis-chat-${eq().creado}`) || '[]'); } catch (e) { historial = []; }
 }
 
 // --- bitácora ---
 function pestanaBitacora(cont) {
   const b = eq().bitacora || {};
   cont.innerHTML = `<h2>Bitácora de la misión</h2>
-    <p class="tenue" style="margin-top:0">Cada estación les da una pieza para el reto final contra Ultrón. Anótenla aquí: se guarda en todos los aparatos del equipo.</p>
+    <p class="tenue" style="margin-top:0">Cada estación les da una pieza para el reto final contra Ultrón. Anótenla aquí: se guarda en esta tablet.</p>
     <div class="lista">${ESTACIONES.map((s) => `<div class="item">
       <div class="cabeza"><b>${esc(s.nombre)} · ${esc(s.reto)}</b><span class="etiqueta ${b[s.id] ? 'ok' : ''}">${esc(s.pieza)}</span></div>
       <input type="text" data-est="${s.id}" maxlength="120" value="${esc(b[s.id] || '')}" placeholder="Pieza: ${esc(s.pieza)}" autocomplete="off">
@@ -1020,7 +1006,7 @@ async function abrirZonaCamara(cont) {
     const lugar = zona.querySelector('#c-lugar').value;
     const blob = await capturar(video, { titulo: `${eq().nombre}`, subtitulo: `${eq().jarvis.nombre} · ${lugar} · ${new Date().toLocaleDateString('es-MX')}`, color: colorEquipo() });
     if (!blob) return;
-    await guardarFoto(blob, { equipo: eq().codigo, lugar });
+    await guardarFoto(blob, { equipo: eq().creado, lugar });
     aviso('📸 Foto guardada');
     pintarGaleria();
   });
@@ -1029,7 +1015,7 @@ async function abrirZonaCamara(cont) {
 async function pintarGaleria() {
   const g = $('#galeria');
   if (!g) return;
-  const fotos = await listarFotos(eq().codigo);
+  const fotos = await listarFotos(eq().creado);
   g.querySelectorAll('img').forEach((i) => URL.revokeObjectURL(i.src));
   g.innerHTML = fotos.length ? '' : '<p class="tenue">Todavía no hay fotos.</p>';
   fotos.forEach((f) => {
@@ -1045,7 +1031,7 @@ function verFoto(f) {
   const url = URL.createObjectURL(f.blob);
   const m = modal(`<img src="${url}" style="width:100%;border-radius:12px" alt="">
     <p class="tenue">${esc(f.lugar)} · ${hora(f.t)}</p>
-    <div class="fila-botones"><a class="btn btn-primario" href="${url}" download="jarvis-${eq().codigo}-${f.id}.jpg">Descargar</a><button class="btn btn-rojo" data-borrar>Borrar</button></div>`,
+    <div class="fila-botones"><a class="btn btn-primario" href="${url}" download="jarvis-${eq().creado}-${f.id}.jpg">Descargar</a><button class="btn btn-rojo" data-borrar>Borrar</button></div>`,
   { alCerrar: () => URL.revokeObjectURL(url) });
   m.el.querySelector('[data-borrar]').addEventListener('click', async () => {
     if (!(await confirmar('¿Borrar esta foto?', { si: 'Borrar', peligro: true }))) return;
@@ -1077,7 +1063,7 @@ function pestanaFicha(cont) {
   const encendidoEn = e.encendido ? hora(e.encendido) : '--:--';
   cont.innerHTML = `<h2>Ficha técnica</h2>
     <p class="tenue" style="margin-top:0">Esto es lo que programaron hoy. Así se ve su JARVIS por dentro:</p>
-    <pre class="codigo"><span class="c">// jarvis.config.js · equipo ${esc(e.codigo)}</span>
+    <pre class="codigo"><span class="c">// jarvis.config.js</span>
 <span class="k">const</span> <span class="p">jarvis</span> = {
   nombre: ${s(e.jarvis.nombre)},
   equipo: ${s(e.nombre)},
@@ -1087,6 +1073,7 @@ function pestanaFicha(cont) {
   ambiente: ${instalado('ambiente') ? s(AMBIENTES[e.ambiente.id].tipo) : '<span class="k">null</span>'},
   personalidad: ${s(p.nombre)},
   escudo: ${instalado('escudo') ? '<span class="k">true</span>' : '<span class="k">false</span>'},
+  cerebro: ${s(cerebroIA() ? 'ia + basico' : 'basico')},
   habilidades: [${habs}],
   encendido: ${s(encendidoEn)},
 };</pre>
@@ -1103,8 +1090,7 @@ Te encanta ${esc(e.personalidad.encanta || 'ayudar a tu equipo')}. Nunca ${esc(e
       <span class="logro ${e.logros && e.logros.ultron ? '' : 'no'}">🛡️ Sobrevivieron a Ultrón</span>
       <span class="logro ${ESTACIONES.every((x) => (e.bitacora || {})[x.id]) ? '' : 'no'}">🗺️ Las 4 piezas</span>
     </div>
-    <div class="fila-botones" style="margin-top:18px"><button class="btn" data-unir>${icono('qr')} Unir celulares</button><button class="btn-texto" data-reencender>Ver otra vez el encendido</button></div>`;
-  cont.querySelector('[data-unir]').addEventListener('click', abrirUnir);
+    <div class="fila-botones" style="margin-top:18px"><button class="btn-texto" data-reencender>Ver otra vez el encendido</button></div>`;
   cont.querySelector('[data-reencender]').addEventListener('click', encender);
 }
 
@@ -1129,6 +1115,27 @@ function elegirEstacion(id, { hablarAhora = true } = {}) {
 
 function leerPistas() { try { return JSON.parse(sessionStorage.getItem('jarvis-pistas') || '{}'); } catch (e) { return {}; } }
 function guardarPistas(p) { try { sessionStorage.setItem('jarvis-pistas', JSON.stringify(p)); } catch (e) { /* nada */ } }
+
+/** La siguiente pista de una estación (en el reto que eligieron). La usan el botón y el chat. */
+function siguientePista(id) {
+  const a = AYUDA_ESTACIONES[id];
+  const p = leerPistas();
+  const nivel = a.niveles ? Number(p[`${id}:nivel`] ?? -1) : -1;
+  const lista = a.niveles ? (nivel >= 0 ? a.niveles[nivel].pistas : null) : a.pistas;
+  if (!lista) return { titulo: 'PRIMERO', texto: 'Díganme en qué reto van: tóquenlo en la ayuda de la estación y les doy una pista de ese.', nueva: false };
+  const clave = `${id}:${a.niveles ? nivel : 'g'}`;
+  const i = p[clave] || 0;
+  let r;
+  if (i >= lista.length) {
+    r = { titulo: 'YA NO HAY MÁS PISTAS', texto: 'Ya les di todas las pistas de esto. Pregúntenme por un concepto o pídanle ayuda al facilitador del taller.', nueva: false };
+    p[clave] = 0;
+  } else {
+    r = { titulo: `PISTA ${i + 1} DE ${lista.length}`, texto: lista[i], nueva: true };
+    p[clave] = i + 1;
+  }
+  guardarPistas(p);
+  return r;
+}
 
 /** Ayuda de una estación: resumen, enlace al taller, pistas en orden y conceptos. Funciona sin internet. */
 function montarAyuda(cont, id) {
@@ -1163,19 +1170,9 @@ function montarAyuda(cont, id) {
       pintarAyuda();
     });
     cont.querySelector('[data-pista]').addEventListener('click', () => {
-      const l = lista();
-      if (!l) { mostrar('PRIMERO', 'Toquen el reto en el que van y les doy una pista de ese.'); return; }
-      const p = leerPistas();
-      const i = p[clave()] || 0;
-      if (i >= l.length) {
-        mostrar('YA NO HAY MÁS PISTAS', tieneHabilidad('chat') ? 'Ya les di todas las pistas de esto. Pregúntenme con sus propias palabras qué es lo que no les sale.' : 'Ya les di todas las pistas de esto. Pídanle ayuda al facilitador del taller.');
-        p[clave()] = 0;
-      } else {
-        mostrar(`PISTA ${i + 1} DE ${l.length}`, l[i]);
-        p[clave()] = i + 1;
-        sonido('escaneo');
-      }
-      guardarPistas(p);
+      const r = siguientePista(id);
+      mostrar(r.titulo, r.texto);
+      if (r.nueva) sonido('escaneo');
       cuenta();
     });
     cont.querySelector('[data-conceptos]').addEventListener('click', (ev) => {
@@ -1192,11 +1189,10 @@ function montarAyuda(cont, id) {
 function abrirAyuda(id) {
   const sinEquipo = !eq();
   const m = modal(`<div id="ayuda-modal" style="margin-top:36px"></div>
-    ${sinEquipo ? `<p class="tenue">Para que JARVIS conteste sus preguntas con IA, únanse a su equipo.</p>
-      <div class="fila-botones"><button class="btn btn-primario" data-unirse>Unirme a mi equipo</button><button class="btn-texto" data-crear>Crear equipo</button></div>` : ''}
+    ${sinEquipo ? `<p class="tenue">¿Todavía no tienen JARVIS en esta tablet? Créenlo para hacerle preguntas.</p>
+      <div class="fila-botones"><button class="btn btn-primario" data-crear>Crear nuestro JARVIS</button></div>` : ''}
     ${!sinEquipo && !eq().encendido ? '<p class="tenue">Cuando enciendan su JARVIS, esta ayuda también aparece en la pestaña Hablar.</p>' : ''}`);
   montarAyuda(m.el.querySelector('#ayuda-modal'), id);
-  m.el.querySelector('[data-unirse]')?.addEventListener('click', () => { m.cerrar(); abrirUnirse(); });
   m.el.querySelector('[data-crear]')?.addEventListener('click', () => { m.cerrar(); abrirCrear(); });
 }
 
@@ -1253,28 +1249,11 @@ function pintarRecordatorio() {
 }
 setInterval(pintarRecordatorio, 20000);
 
-// ---------- anuncios del staff ----------
-function mostrarAnuncio(a) {
-  const ultron = a.tipo === 'ultron';
-  const capa = document.createElement('div');
-  capa.className = `anuncio ${ultron ? 'ultron-anuncio' : ''}`;
-  capa.innerHTML = `<div class="caja"><div class="tipo">${ultron ? '⚠ TRANSMISIÓN DE ULTRÓN' : 'MENSAJE DEL STAFF'}</div><div class="texto">${esc(a.texto)}</div><button class="btn ${ultron ? 'btn-rojo' : 'btn-primario'}">Entendido</button></div>`;
-  document.body.appendChild(capa);
-  const cerrar = () => { capa.remove(); if (nucleo) nucleo.modo(null); fondo.modo(null); };
-  capa.querySelector('button').addEventListener('click', () => { callar(); cerrar(); });
-  sonido(ultron ? 'ultron' : 'anuncio');
-  if (ultron) { if (nucleo) nucleo.modo('ultron'); fondo.modo('ultron'); }
-  setTimeout(() => {
-    hablar(a.texto, ultron ? { tono: 0.1, velocidad: 0.85 } : ajustesVoz()).then(() => setTimeout(() => { if (capa.isConnected) cerrar(); }, 6000));
-  }, 700);
-}
-
 // ---------- arranque de la página ----------
 const params = new URLSearchParams(location.search);
 let tarjetaPendiente = (params.get('t') || '').toUpperCase();
-const unirsePendiente = (params.get('unirse') || '').toUpperCase();
 const estacionPendiente = AYUDA_ESTACIONES[params.get('estacion')] ? params.get('estacion') : '';
-if (tarjetaPendiente || unirsePendiente || estacionPendiente) {
+if (tarjetaPendiente || params.get('unirse') || estacionPendiente) {
   const limpia = new URL(location.href);
   limpia.searchParams.delete('t');
   limpia.searchParams.delete('unirse');
@@ -1295,30 +1274,12 @@ function aplicarTarjetaPendiente() {
 }
 
 estado.on('cambio', () => render());
-estado.on('conexion', () => { pintarBarra(); if (pestana === 'hablar') pintarBateriaChat(); });
-estado.on('energia', () => { pintarBarra(); pintarBateriaChat(); });
-estado.on('global', () => { if (pestana === 'hablar') pintarBateriaChat(); });
-estado.on('anuncio', (a) => mostrarAnuncio(a));
-estado.on('rechazo', (msg) => aviso(msg, { mal: true, ms: 4000 }));
-estado.on('borrado', () => {
-  aviso('El staff reinició este equipo. Creen uno nuevo o únanse con otro código.', { mal: true, ms: 6000 });
-  estado.salir();
-  render(true);
-});
 
 estado.cargar();
 if (eq()) cargarHistorial();
 render(true);
-estado.vigilar(6000);
-estado.sincronizar();
 
-if (unirsePendiente) {
-  if (eq() && eq().codigo === unirsePendiente) aviso('Este aparato ya está en ese equipo.');
-  else if (eq()) {
-    confirmar(`Este aparato está en el equipo ${eq().nombre}. ¿Cambiarse al equipo ${unirsePendiente}?`, { si: 'Cambiarme' })
-      .then((si) => { if (si) abrirUnirse(unirsePendiente); });
-  } else abrirUnirse(unirsePendiente);
-} else if (tarjetaPendiente && eq()) {
+if (tarjetaPendiente && eq()) {
   aplicarTarjetaPendiente();
 } else if (estacionPendiente) {
   // cartel "¿Atorados?" de una estación

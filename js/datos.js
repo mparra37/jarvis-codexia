@@ -131,7 +131,7 @@ export const HABILIDADES = {
   H1: { id: 'bitacora', nombre: 'Bitácora', desc: 'Guarda las pistas de cada estación.', sabias: 'Sus pistas se guardan en una base de datos en la nube: por eso aparecen en todos los dispositivos del equipo.' },
   H2: { id: 'camara', nombre: 'Cámara', desc: 'Fotos del equipo con marco de JARVIS.', sabias: 'Una foto es una cuadrícula de millones de puntos (pixeles). Cada pixel son 3 números: rojo, verde y azul.' },
   H3: { id: 'puntos', nombre: 'Puntos', desc: 'Registra los puntajes de cada taller.', sabias: 'Los códigos de los juegos VR traen una "suma de verificación": si cambian una sola letra, JARVIS se da cuenta de que el código es falso.' },
-  H4: { id: 'chat', nombre: 'Chat con IA', desc: 'Pregúntenle lo que necesiten (da pistas, no respuestas).', sabias: 'Cuando le preguntan algo, JARVIS manda el mensaje a un servidor que guarda una llave secreta (API key) y ese servidor le pregunta a la IA. La llave nunca llega a su tablet: eso es ciberseguridad.' },
+  H4: { id: 'chat', nombre: 'Cerebro IA', desc: 'Conecta a JARVIS con una inteligencia artificial de verdad.', sabias: 'Sin esta tarjeta, JARVIS usa su cerebro básico: busca palabras clave y contesta con textos escritos por personas. Con el Cerebro IA, la pregunta viaja a un servidor que guarda una llave secreta (API key) y un modelo de lenguaje redacta la respuesta. La llave nunca llega a su tablet. Si la IA falla, vuelve el cerebro básico.' },
 };
 export const HABILIDAD_POR_ID = Object.fromEntries(Object.entries(HABILIDADES).map(([k, h]) => [h.id, { ...h, codigo: k }]));
 

@@ -51,7 +51,7 @@ const env = {
   MODELO: process.env.MODELO || 'claude-opus-5-5',
   ESFUERZO: 'low',
   ORIGENES: '*',
-  MAX_EQUIPOS: '60',
+  CUOTA_TABLETA: '30',
   LIMITE_DIARIO: '3000',
   CLAVE_VR: 'enlace-vr-2026',
 };

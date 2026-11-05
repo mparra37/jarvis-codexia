@@ -11,8 +11,8 @@ ORIGENES = "https://mparra37.github.io"
 MODELO = "claude-opus-5-5"
 # Esfuerzo de la IA: low es rápido (recomendado para respuestas cortas en voz alta).
 ESFUERZO = "low"
-# Máximo de equipos que se pueden registrar.
-MAX_EQUIPOS = "60"
+# Preguntas de IA por tablet por día (la "batería"). Se puede cambiar desde el panel del staff.
+CUOTA_TABLETA = "30"
 # Máximo de preguntas a la IA por día (protege la API key).
 LIMITE_DIARIO = "3000"
 # Clave de los códigos de los juegos VR (la misma de ITC-VR-Games/js/config.js).
