@@ -18,11 +18,18 @@ function cargarVoces() {
     .filter((v) => /^es([-_]|$)/i.test(v.lang))
     .sort((a, b) => rango(a) - rango(b) || a.name.localeCompare(b.name));
 }
+// voces de mejor calidad (iPad/Mac "Mejorada"/"Premium", Edge "Natural", voces neuronales)
+const BUENA = /premium|enhanced|mejorad|natural|neural|wavenet|studio/i;
+// voces de broma de iPad/Mac: sirven, pero que no salgan primero
+const NOVEDAD = /\b(eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley)\b/i;
+
 function rango(v) {
   const lang = v.lang.replace('_', '-');
   const i = PREFERENCIA.findIndex((p) => lang.toLowerCase().startsWith(p.toLowerCase()));
-  // primero las voces del aparato: las "de red" fallan sin internet y el navegador usa la de siempre
-  return (v.localService ? 0 : 100) + (i < 0 ? 9 : i) * 10;
+  const calidad = BUENA.test(v.name) ? 0 : NOVEDAD.test(v.name) ? 2 : 1;
+  // primero las voces del aparato: las "de red" fallan sin internet y el navegador usa la de siempre;
+  // luego el acento (México primero) y luego la calidad
+  return (v.localService ? 0 : 100) + (i < 0 ? 9 : i) * 10 + calidad;
 }
 if (sintesis) {
   cargarVoces();

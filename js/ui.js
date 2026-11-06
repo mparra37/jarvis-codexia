@@ -87,3 +87,32 @@ export async function mantenerPantalla() {
   } catch (e) { /* no soportado */ }
 }
 document.addEventListener('visibilitychange', () => { if (bloqueo && document.visibilityState === 'visible') mantenerPantalla(); });
+
+// ---------- pantalla completa ----------
+const ICONO_ABRIR = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>';
+const ICONO_SALIR = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg>';
+const enPantallaCompleta = () => Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+
+/** Convierte un botón en "pantalla completa / salir". Se esconde si el navegador no puede (iPhone). */
+export function botonPantallaCompleta(boton) {
+  const raiz = document.documentElement;
+  const pedir = raiz.requestFullscreen || raiz.webkitRequestFullscreen;
+  const soltar = document.exitFullscreen || document.webkitExitFullscreen;
+  if (!boton || !pedir) { if (boton) boton.hidden = true; return; }
+  const pintar = () => {
+    const dentro = enPantallaCompleta();
+    boton.innerHTML = dentro ? ICONO_SALIR : ICONO_ABRIR;
+    boton.title = dentro ? 'Salir de pantalla completa' : 'Pantalla completa';
+    boton.setAttribute('aria-label', boton.title);
+  };
+  boton.hidden = false;
+  boton.addEventListener('click', async () => {
+    try {
+      if (enPantallaCompleta()) await soltar.call(document);
+      else await pedir.call(raiz, { navigationUI: 'hide' });
+    } catch (e) { aviso('Este navegador no dejó usar pantalla completa.', { mal: true }); }
+  });
+  document.addEventListener('fullscreenchange', pintar);
+  document.addEventListener('webkitfullscreenchange', pintar);
+  pintar();
+}

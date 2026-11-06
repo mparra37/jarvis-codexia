@@ -16,7 +16,7 @@ import { MISIONES, misionesVisibles, cumplida, siguiente } from './misiones.js';
 import { verGuia, menuGuias } from './guias.js';
 import { llamar, hayServidor } from './api.js';
 import { CONFIG } from './config.js';
-import { $, $$, esc, modal, confirmar, aviso, hora, qrSVG, mantenerPantalla } from './ui.js';
+import { $, $$, esc, modal, confirmar, aviso, hora, qrSVG, mantenerPantalla, botonPantallaCompleta } from './ui.js';
 import { Nucleo } from './nucleo.js';
 import { Ambiente } from './ambiente.js';
 import { hablar, callar, alHablar, desbloquearVoz, vocesEspanol, escuchar, detenerEscucha, puedeEscuchar, listasVoces, vozElegida } from './voz.js';
@@ -133,6 +133,7 @@ function pintarBarra() {
 }
 $('#chip-equipo').addEventListener('click', () => abrirEquipo());
 $('#btn-ayuda').addEventListener('click', () => menuGuias({ decir }));
+botonPantallaCompleta($('#btn-pantalla'));
 function guia(id) { callar(); verGuia(id, { decir }); }
 
 // ---------- vistas ----------
@@ -247,8 +248,10 @@ function pintarTaller() {
   const sig = siguiente(eq(), 1, conIA()) || fase1[fase1.length - 1];
   const listo = sig.id === 'encender';
   const n = fase1.indexOf(sig) + 1;
+  // el paso anterior ya hecho, para regresar a cambiarlo (por ejemplo, la voz)
+  const previo = fase1.slice(0, n - 1).reverse().find((m) => MODULO[m.id] && instalado(m.id)) || null;
   cont.innerHTML = `
-    <div class="mision-pasos">${fase1.map((m, i) => `<button class="paso-chip ${cumplida(m, eq()) ? 'hecho' : ''} ${m === sig ? 'actual' : ''}" style="--c:${m.color}" data-mod="${m.id}" aria-label="${esc(m.titulo)}">${cumplida(m, eq()) ? '✓' : (m.id === 'encender' ? '⏻' : i + 1)}</button>`).join('<span class="paso-linea"></span>')}</div>
+    <div class="mision-pasos">${fase1.map((m, i) => `<button class="paso-chip ${cumplida(m, eq()) ? 'hecho' : ''} ${m === sig ? 'actual' : ''}" style="--c:${m.color}" data-mod="${m.id}" aria-label="${esc(m.titulo)}" title="${cumplida(m, eq()) && MODULO[m.id] ? 'Tocar para cambiarlo' : esc(m.titulo)}">${cumplida(m, eq()) ? '✓' : (m.id === 'encender' ? '⏻' : i + 1)}</button>`).join('<span class="paso-linea"></span>')}</div>
     <div class="mision-actual" style="--c:${sig.color}">
       <span class="mision-num">${listo ? '¡TODO LISTO!' : `MISIÓN ${n} DE 4`}</span>
       <h2>${esc(sig.titulo)}</h2>
@@ -259,6 +262,7 @@ function pintarTaller() {
        <button class="btn btn-primario btn-grande" style="width:100%" data-accion="escanear">${icono('qr')} Escanear tarjeta</button>`}
     </div>
     <div class="fila-botones mision-extra">
+      ${previo ? `<button class="btn-texto" data-accion="regresar">← Regresar: ${esc(MODULO[previo.id].nombre)}</button>` : ''}
       <button class="btn-texto" data-accion="guia">📺 Ver cómo</button>
       ${listo ? '<button class="btn-texto" data-accion="escanear">Cambiar algo (escanear)</button>' : '<button class="btn-texto" data-accion="codigo">¿Sin cámara? Escribir código</button>'}
       <button class="btn-texto" data-accion="modulos">Ver módulos (${MODULOS.filter((m) => instalado(m.id)).length}/8)</button>
@@ -268,6 +272,7 @@ function pintarTaller() {
   cont.querySelector('[data-accion="codigo"]')?.addEventListener('click', abrirCodigoTarjeta);
   cont.querySelector('[data-accion="guia"]').addEventListener('click', () => guia(sig.guia || 'escanear'));
   cont.querySelector('[data-accion="modulos"]').addEventListener('click', verModulos);
+  cont.querySelector('[data-accion="regresar"]')?.addEventListener('click', () => abrirModulo(previo.id));
   cont.querySelectorAll('[data-mod]').forEach((b) => b.addEventListener('click', () => {
     const id = b.dataset.mod;
     if (MODULO[id] && instalado(id)) abrirModulo(id);
@@ -503,7 +508,8 @@ function cabezaModulo(m, nuevo, sabias) {
     <p class="sabias-corto">💡 ${esc(sabias || m.corto || m.sabias)}</p>`;
 }
 
-const LISTO = '<button class="btn btn-primario btn-grande" data-listo style="flex:1">Listo</button>';
+// antes de encenderlo, el botón lleva a la siguiente misión; después, solo guarda
+const listoBtn = () => `<button class="btn btn-primario btn-grande" data-listo style="flex:1">${eq() && !eq().encendido ? 'Siguiente →' : 'Listo'}</button>`;
 const ESCUCHAR = `<button class="btn btn-grande" data-probar>${icono('altavoz')} Escuchar</button>`;
 
 function abrirModulo(id, { nuevo = false, habilidad = null } = {}) {
@@ -552,7 +558,7 @@ function editorIdentidad(m, nuevo) {
       <label class="campo"><span>Lema</span><input type="text" id="f-lema" maxlength="60" value="${esc(e.jarvis.lema)}" placeholder="Ej. Ningún bug nos detiene" autocomplete="off"></label>
       <p class="tenue">Palabra de activación: <b id="f-activacion"></b></p>
     </details>
-    <div class="fila-botones" style="margin-top:14px">${ESCUCHAR}${LISTO}</div>`, { color: m.color });
+    <div class="fila-botones acciones-hoja">${ESCUCHAR}${listoBtn()}</div>`, { color: m.color });
   const nombre = md.el.querySelector('#f-jnombre');
   const act = () => { md.el.querySelector('#f-activacion').textContent = `“Oye, ${nombre.value.trim() || 'JARVIS'}”`; };
   nombre.addEventListener('input', act);
@@ -570,24 +576,28 @@ function editorIdentidad(m, nuevo) {
 
 function editorVoz(m, nuevo) {
   const e = eq();
-  const base = VOCES[e.voz.id];
+  let elegida = e.voz.id;
   const md = modal(`${cabezaModulo(m, nuevo)}
-    <p style="margin:0 0 4px;font-size:20px"><b>${esc(base.nombre)}</b> · <span class="tenue">${esc(base.desc)}</span></p>
-    <p class="tenue" style="margin:0">¿No les convence? Escaneen otra tarjeta de voz y comparen.</p>
-    <details class="mas"><summary>Más opciones: afinar la voz</summary>
-      <label class="campo"><span>Tono (grave ↔ agudo): <b id="v-tono-n"></b></span><input type="range" id="v-tono" min="0" max="2" step="0.05" value="${e.voz.tono ?? base.tono}"></label>
-      <label class="campo"><span>Velocidad: <b id="v-vel-n"></b></span><input type="range" id="v-vel" min="0.5" max="1.8" step="0.05" value="${e.voz.velocidad ?? base.velocidad}"></label>
+    <p style="margin:0 0 8px"><b>Toquen una voz para escucharla.</b> <span class="tenue">Prueben varias y quédense con su favorita.</span></p>
+    <div class="voces" id="v-lista">${Object.entries(VOCES).map(([k, v]) => `<button type="button" class="voz-op" data-voz="${k}">
+      <b>${icono('altavoz')} ${esc(v.nombre)}</b><span>${esc(v.desc)}</span></button>`).join('')}</div>
+    <div class="afinar">
+      <label class="campo"><span><b>Tono</b> <span class="tenue">grave ↔ agudo</span> · <b id="v-tono-n" class="mono"></b></span><input type="range" id="v-tono" min="0" max="2" step="0.05"></label>
+      <label class="campo"><span><b>Velocidad</b> <span class="tenue">lenta ↔ rápida</span> · <b id="v-vel-n" class="mono"></b></span><input type="range" id="v-vel" min="0.5" max="1.8" step="0.05"></label>
+    </div>
+    <details class="mas"><summary>Más opciones: otra voz del aparato</summary>
       <label class="campo"><span>Voz del aparato</span><select id="v-voz"><option value="">Automática</option></select></label>
       <p class="tenue" style="font-size:14px;margin:0">Usando: <span id="v-usando">…</span></p>
       <p class="mono tenue" style="font-size:13px">voz.tono = <span id="v-codigo-t"></span>; voz.velocidad = <span id="v-codigo-v"></span>;</p>
-      <button class="btn-texto" data-reset>Volver a la original</button>
+      <button class="btn-texto" data-reset>Volver a como venía</button>
     </details>
-    <div class="fila-botones" style="margin-top:14px">${ESCUCHAR}${LISTO}</div>`, { color: m.color });
+    <div class="fila-botones acciones-hoja">${ESCUCHAR}${listoBtn()}</div>`, { color: m.color });
   const tono = md.el.querySelector('#v-tono');
   const vel = md.el.querySelector('#v-vel');
   const select = md.el.querySelector('#v-voz');
-  const ajustes = () => ({ tono: Number(tono.value), velocidad: Number(vel.value), voz: base.voz, vozNombre: select.value || '' });
+  const ajustes = () => ({ tono: Number(tono.value), velocidad: Number(vel.value), voz: VOCES[elegida].voz, vozNombre: select.value || '' });
   const pintar = () => {
+    md.el.querySelectorAll('.voz-op').forEach((b) => b.classList.toggle('activo', b.dataset.voz === elegida));
     md.el.querySelector('#v-tono-n').textContent = Number(tono.value).toFixed(2);
     md.el.querySelector('#v-vel-n').textContent = `${Number(vel.value).toFixed(2)}×`;
     md.el.querySelector('#v-codigo-t').textContent = Number(tono.value).toFixed(2);
@@ -595,24 +605,46 @@ function editorVoz(m, nuevo) {
     const v = vozElegida(ajustes());
     md.el.querySelector('#v-usando').textContent = v ? `${v.name} (${v.lang})` : 'la voz del aparato';
   };
+  const ponerPreset = (id, guardados) => {
+    elegida = id;
+    const base = VOCES[id];
+    tono.value = guardados && guardados.tono != null ? guardados.tono : base.tono;
+    vel.value = guardados && guardados.velocidad != null ? guardados.velocidad : base.velocidad;
+    pintar();
+  };
+  const probar = () => {
+    const frase = `¿Qué tal sueno así? Soy ${eq().jarvis.nombre}, con la voz ${VOCES[elegida].nombre}.`;
+    subtitulo(frase);
+    hablar(frase, ajustes());
+  };
+  ponerPreset(elegida, e.voz);
   // la lista de voces del aparato puede tardar en cargar: se llena cuando esté
   listasVoces().then(() => {
     vocesEspanol().forEach((v) => {
       const op = document.createElement('option');
-      op.textContent = v.name;
+      op.textContent = `${v.name}${v.localService ? '' : ' (internet)'}`;
       op.value = v.name;
       if (v.name === e.voz.vozNombre) op.selected = true;
       select.appendChild(op);
     });
     pintar();
   });
-  [tono, vel, select].forEach((x) => x.addEventListener('input', pintar));
-  pintar();
-  md.el.querySelector('[data-probar]').addEventListener('click', () => { subtitulo('¿Qué tal sueno así?'); hablar(`¿Qué tal sueno así? Soy ${eq().jarvis.nombre}.`, ajustes()); });
-  md.el.querySelector('[data-reset]').addEventListener('click', () => { tono.value = base.tono; vel.value = base.velocidad; select.value = ''; pintar(); });
+  md.el.querySelector('#v-lista').addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-voz]');
+    if (!b) return;
+    ponerPreset(b.dataset.voz);
+    probar();
+  });
+  [tono, vel].forEach((x) => {
+    x.addEventListener('input', pintar);
+    x.addEventListener('change', probar); // al soltar el control, se escucha cómo quedó
+  });
+  select.addEventListener('change', () => { pintar(); probar(); });
+  md.el.querySelector('[data-probar]').addEventListener('click', probar);
+  md.el.querySelector('[data-reset]').addEventListener('click', () => { select.value = ''; ponerPreset(elegida); probar(); });
   md.el.querySelector('[data-listo]').addEventListener('click', () => {
     const a = ajustes();
-    if (guardarConFiltro({ voz: { tono: a.tono, velocidad: a.velocidad, vozNombre: a.vozNombre } }, md)) decir('¡Me encanta mi voz!');
+    if (guardarConFiltro({ voz: { id: elegida, tono: a.tono, velocidad: a.velocidad, vozNombre: a.vozNombre } }, md)) decir('¡Me encanta mi voz!');
   });
 }
 
@@ -624,7 +656,7 @@ function editorNucleo(m, nuevo) {
     <div class="centro"><canvas id="vista-nucleo" style="width:160px;height:160px"></canvas></div>
     <p style="margin:0 0 6px"><b>Escojan un color:</b></p>
     <div class="chips" id="colores">${COLORES.map((c) => `<button type="button" class="chip ${c.valor === color ? 'activo' : ''}" data-color="${c.valor}"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${c.valor};vertical-align:-2px"></span> ${c.nombre}</button>`).join('')}</div>
-    <div class="fila-botones" style="margin-top:14px">${LISTO}</div>`, { color: m.color, alCerrar: () => muestra.destruir() });
+    <div class="fila-botones acciones-hoja">${listoBtn()}</div>`, { color: m.color, alCerrar: () => muestra.destruir() });
   const muestra = new Nucleo(md.el.querySelector('#vista-nucleo'), { forma: NUCLEOS[e.nucleo.id].forma, color });
   md.el.querySelector('#colores').addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-color]');
@@ -642,7 +674,7 @@ function editorAmbiente(m, nuevo) {
   const md = modal(`${cabezaModulo(m, nuevo)}
     <p style="margin:0"><b>${esc(a.nombre)}</b> · <span class="tenue">${esc(a.desc)}</span></p>
     <p class="tenue">¿Otro escenario? Escaneen otra tarjeta de ambiente.</p>
-    <div class="fila-botones">${LISTO}</div>`, { color: m.color });
+    <div class="fila-botones acciones-hoja">${listoBtn()}</div>`, { color: m.color });
   md.el.querySelector('[data-listo]').addEventListener('click', md.cerrar);
 }
 
@@ -661,7 +693,7 @@ function editorPersonalidad(m, nuevo) {
     ${fila('d-encanta', 'Le encanta…', SUGERENCIAS.encanta.slice(0, 4), e.personalidad.encanta, 'el fútbol')}
     ${fila('d-nunca', 'Nunca…', SUGERENCIAS.nunca.slice(0, 4), e.personalidad.nunca, 'se rinde')}
     <details class="mas"><summary>Ver su directiva completa (el prompt)</summary><pre class="codigo" id="d-vista"></pre></details>
-    <div class="fila-botones" style="margin-top:14px">${ESCUCHAR}${LISTO}</div>`, { color: m.color });
+    <div class="fila-botones acciones-hoja">${ESCUCHAR}${listoBtn()}</div>`, { color: m.color });
   activarChips(md.el);
   const val = (id) => md.el.querySelector(`#${id}`).value.trim();
   const pintar = () => {
@@ -689,7 +721,7 @@ function editorMemoria(m, nuevo) {
       <label class="campo"><span>Preparatoria</span><input type="text" id="m-prepa" maxlength="60" value="${esc(e.memoria.prepa)}" autocomplete="off"></label>
       <label class="campo"><span>Algo que JARVIS deba saber de ustedes</span><input type="text" id="m-dato" maxlength="120" value="${esc(e.memoria.dato)}" placeholder="Ej. Somos fans del béisbol" autocomplete="off"></label>
     </details>
-    <div class="fila-botones" style="margin-top:14px">${LISTO}</div>`, { color: m.color });
+    <div class="fila-botones acciones-hoja">${listoBtn()}</div>`, { color: m.color });
   md.el.querySelector('[data-listo]').addEventListener('click', () => {
     const lista = $$('.m-int', md.el).map((i) => i.value.trim().split(/\s+/)[0]).filter(Boolean);
     const ok = guardarConFiltro({ memoria: { integrantes: lista, prepa: md.el.querySelector('#m-prepa').value.trim(), dato: md.el.querySelector('#m-dato').value.trim() } }, md);
@@ -705,7 +737,7 @@ function editorEscudo(m, nuevo) {
     <details class="mas"><summary>Más opciones: agregar una regla del equipo</summary>
       <label class="campo"><span>Regla del equipo</span><input type="text" id="e-regla" maxlength="80" value="${esc(e.escudo.regla)}" placeholder="Ej. Nunca cuenta spoilers de películas" autocomplete="off"></label>
     </details>
-    <div class="fila-botones" style="margin-top:14px">${LISTO}</div>`, { color: m.color });
+    <div class="fila-botones acciones-hoja">${listoBtn()}</div>`, { color: m.color });
   md.el.querySelector('[data-listo]').addEventListener('click', () => {
     if (guardarConFiltro({ escudo: { regla: md.el.querySelector('#e-regla').value.trim() } }, md)) decir('Escudo activado.');
   });
@@ -723,7 +755,7 @@ function editorHabilidades(m, nuevo, habilidad) {
     cuerpo = `${cabezaModulo(m, false)}
       <div class="lista">${Object.entries(HABILIDADES).filter(([, h]) => h.id !== 'chat' || conIA()).map(([cod, h]) => `<div class="item"><div class="cabeza"><b>${icono(h.id)} ${esc(h.nombre)}</b><span class="etiqueta ${tieneHabilidad(h.id) ? 'ok' : ''}">${tieneHabilidad(h.id) ? 'Instalada' : `Tarjeta ${cod}`}</span></div><span class="tenue">${esc(h.desc)}</span></div>`).join('')}</div>`;
   }
-  const md = modal(`${cuerpo}<div class="fila-botones" style="margin-top:14px">${LISTO}</div>`, { color: m.color });
+  const md = modal(`${cuerpo}<div class="fila-botones acciones-hoja">${listoBtn()}</div>`, { color: m.color });
   md.el.querySelector('[data-listo]').addEventListener('click', md.cerrar);
 }
 

@@ -232,7 +232,7 @@ pre.codigo {
 .logro.no { opacity: 0.35; }
 
 /* ---------- misiones (taller) ---------- */
-.btn-ayuda { width: 40px; height: 40px; flex: none; border-radius: 50%; border: 1px solid var(--borde); background: var(--panel); font-family: var(--titulo); font-weight: 800; font-size: 18px; }
+.btn-ayuda { display: grid; place-items: center; color: inherit; width: 40px; height: 40px; flex: none; border-radius: 50%; border: 1px solid var(--borde); background: var(--panel); font-family: var(--titulo); font-weight: 800; font-size: 18px; }
 .taller-mision .escenario { padding: 4px; }
 .taller-mision .escenario canvas { width: min(230px, 46vw); height: min(230px, 46vw); }
 .taller-mision .subtitulo:empty { display: none; }
@@ -255,6 +255,19 @@ pre.codigo {
 .sabias-corto { margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); font-size: 17px; }
 details.mas { margin-top: 12px; border-top: 1px solid var(--borde); padding-top: 4px; }
 details.mas summary { cursor: pointer; color: var(--acento); font-weight: 700; min-height: 42px; display: flex; align-items: center; }
+/* hoja de voz: las voces para probar y los controles a la vista */
+.voces { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.voz-op {
+  display: grid; gap: 2px; text-align: left; padding: 10px 12px; min-height: 64px; border-radius: 12px;
+  border: 1px solid var(--borde); background: var(--panel); color: inherit; font: inherit; cursor: pointer;
+}
+.voz-op b { display: flex; gap: 6px; align-items: center; font-size: 17px; }
+.voz-op b .icono { width: 18px; height: 18px; flex: none; }
+.voz-op span { font-size: 14px; opacity: 0.75; }
+.voz-op.activo { border-color: var(--c); background: rgba(167, 139, 250, 0.2); box-shadow: 0 0 0 2px var(--c) inset; }
+.afinar { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; margin-top: 12px; }
+.afinar input[type=range] { width: 100%; min-height: 36px; accent-color: var(--c); }
+@media (max-width: 520px) { .afinar { grid-template-columns: 1fr; } }
 .fila-dir { display: grid; gap: 6px; margin-bottom: 14px; }
 .fila-dir .etq { font-weight: 700; font-size: 18px; }
 .fila-dir input { min-height: 42px; font-size: 16px; }
@@ -296,20 +309,26 @@ details.mas summary { cursor: pointer; color: var(--acento); font-weight: 700; m
 
 /* ---------- modales y avisos ---------- */
 .modal-fondo {
-  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px;
+  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; overflow-y: auto;
   background: rgba(0, 0, 0, 0.72); animation: aparecer 0.18s;
 }
 .modal {
-  width: min(600px, 100%); max-height: calc(100dvh - 32px); overflow: auto;
+  width: min(600px, 100%); max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); overflow: auto;
+  -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
   background: var(--panel-solido); border: 1px solid var(--borde); border-radius: 18px;
   padding: 20px; position: relative; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+/* los botones de una hoja siempre a la vista, aunque la hoja sea más alta que la pantalla */
+.modal .acciones-hoja {
+  position: sticky; bottom: -20px; z-index: 2; margin: 14px -20px -20px; padding: 12px 20px 16px;
+  background: var(--panel-solido); border-top: 1px solid var(--borde);
 }
 .modal .cerrar { position: absolute; top: 10px; right: 10px; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--borde); background: rgba(0, 0, 0, 0.4); font-size: 22px; line-height: 1; }
 .modal .cabeza-modulo { display: flex; gap: 12px; align-items: center; margin: 0 40px 10px 0; }
 .modal .cabeza-modulo .icono { width: 40px; height: 40px; color: var(--c); }
 @media (max-width: 600px) {
   .modal-fondo { place-items: end center; padding: 0; }
-  .modal { border-radius: 18px 18px 0 0; max-height: 92dvh; }
+  .modal { border-radius: 18px 18px 0 0; max-height: 92vh; max-height: 92dvh; }
 }
 @keyframes aparecer { from { opacity: 0; } }
 

@@ -114,6 +114,15 @@ Si cambian el código del Worker (`worker/src/`), vuelvan a generar el archivo p
 
 **Costo aproximado:** cada pregunta usa unos 2,500 tokens de entrada y unos 400 de salida. Con Opus 5.5 son unos 2 centavos de dólar por pregunta; 20 tablets × 30 preguntas ≈ 12 dólares como máximo. Con Haiku 5.5, menos de 1 dólar por todo el evento.
 
+### Voces más bonitas en las tablets
+
+JARVIS habla con las voces que trae cada tablet (no usa internet ni la API). Instalar voces mejores un día antes cambia mucho cómo suena:
+
+- **Android:** Ajustes → Accesibilidad → Salida de texto a voz → motor *Servicios de voz de Google* → ⚙ → *Instalar datos de voz* → Español (Estados Unidos o México) → descarguen todas las voces.
+- **iPad:** Ajustes → Accesibilidad → Contenido leído → Voces → Español (México) → descarguen *Paulina (Mejorada)* o una *Premium*.
+
+JARVIS escoge sola la mejor voz en español (México primero, luego las “Mejorada/Premium/Natural”). Con varias voces instaladas, cada tarjeta de voz usa una distinta; en “Más opciones” de la hoja de Voz se puede elegir cualquiera.
+
 ## 3. JARVIS en los otros talleres (ayuda, no dependencia)
 
 - **Pestaña Hablar → “¿Dónde están ahora?”**: eligen la estación y aparece su ayuda: de qué trata, **Abrir taller ↗**, **Dame una pista** (pistas en orden, nunca la respuesta) y los conceptos del taller. Funciona **sin internet y sin IA**. En el chat también pueden escribir “pista”.

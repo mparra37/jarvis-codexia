@@ -8,7 +8,7 @@ import { MISION_VR, JUEGOS, GUION_VR } from './taller_vr_datos.js';
 import { VOCES, icono } from './datos.js';
 import { llamar, hayServidor } from './api.js';
 import { CONFIG } from './config.js';
-import { $, $$, esc, modal, confirmar, aviso, hora, mantenerPantalla } from './ui.js';
+import { $, $$, esc, modal, confirmar, aviso, hora, mantenerPantalla, botonPantallaCompleta } from './ui.js';
 import { Nucleo } from './nucleo.js';
 import { Ambiente } from './ambiente.js';
 import { hablar, callar, alHablar, desbloquearVoz, escuchar, detenerEscucha, puedeEscuchar, vocesEspanol } from './voz.js';
@@ -23,6 +23,7 @@ fondo.poner('laboratorio', '#3fd0ff');
 const nucleo = new Nucleo($('#nucleo'), { forma: 'reactor', color: '#3fd0ff' });
 alHablar((v) => nucleo.hablando(v));
 document.addEventListener('pointerdown', () => { desbloquearVoz(); desbloquearAudio(); mantenerPantalla(); }, { once: true });
+botonPantallaCompleta($('#btn-pantalla'));
 
 let ajustes = { voz: 'V1', tono: null, velocidad: null, vozNombre: '', pin: '' };
 try { ajustes = { ...ajustes, ...JSON.parse(localStorage.getItem(CLAVE_AJUSTES) || '{}') }; } catch (e) { /* nada */ }
