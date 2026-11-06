@@ -52,6 +52,16 @@ export const MISIONES = [
   { id: 'pista', fase: 2, icono: 'bitacora', color: '#ffd23f', ir: 'hablar', guia: 'pista',
     titulo: 'Pídanle una pista', como: 'En Hablar toquen el botón del taller (📍), elijan uno y pidan una pista. Así les ayuda en los talleres.',
     hecho: (e) => Boolean(logro(e, 'pista')) },
+  // ---------- extras para divertirse (opcionales: no cuentan para completar) ----------
+  { id: 'dibujo', fase: 2, opcional: true, accion: 'dibujo', icono: 'ultron', color: '#ff1638',
+    titulo: 'Retrato de Ultrón', como: 'En una hoja, dibujen a mano cómo se imaginan a Ultrón. Tómenle foto: {jarvis} lo escanea para reconocerlo.',
+    hecho: (e) => Boolean(logro(e, 'dibujo')) },
+  { id: 'despertar', fase: 2, opcional: true, accion: 'despertar', necesitaMic: true, icono: 'mic', color: '#3fd0ff',
+    titulo: 'Despiértenlo con la voz', como: 'Toquen el micrófono y digan todos juntos, fuerte: “¡Oye, {jarvis}!”',
+    hecho: (e) => Boolean(logro(e, 'despertar')) },
+  { id: 'trabalenguas', fase: 2, opcional: true, accion: 'trabalenguas', necesitaMic: true, icono: 'voz', color: '#a78bfa',
+    titulo: 'Duelo de trabalenguas', como: '{jarvis} dice un trabalenguas y ustedes lo repiten al micrófono. ¿Quién llega al 100%?',
+    hecho: (e) => logro(e, 'trabalenguas') >= 60 },
   { id: 'super', fase: 2, icono: 'chat', color: '#3dff9a', guia: 'escanear', opcional: true, soloConIA: true,
     titulo: 'Súper inteligencia', como: 'Escaneen la tarjeta H4: JARVIS se conecta a una IA y le pueden preguntar lo que sea.',
     hecho: (e) => hab(e, 'chat') },
@@ -63,9 +73,9 @@ export function cumplida(m, e) {
   return m.hecho(e);
 }
 
-/** Las misiones que se muestran (la de Súper inteligencia solo si hay IA). */
-export function misionesVisibles(conIA) {
-  return MISIONES.filter((m) => !m.soloConIA || conIA);
+/** Las misiones que se muestran (Súper inteligencia solo si hay IA; las de voz, si hay micrófono). */
+export function misionesVisibles(conIA, conMic = true) {
+  return MISIONES.filter((m) => (!m.soloConIA || conIA) && (!m.necesitaMic || conMic));
 }
 
 export function siguiente(e, fase, conIA) {

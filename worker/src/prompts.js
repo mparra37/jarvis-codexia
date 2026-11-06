@@ -82,6 +82,15 @@ export function pedidoPresentacion(e) {
   return `Acabas de encenderte por primera vez frente a tu equipo y frente a todo el salón. Preséntate en 2 o 3 oraciones con tu personalidad: di tu nombre, el nombre del equipo${e.jarvis && e.jarvis.lema ? ' y su lema' : ''}, y algo emocionante sobre vencer a Ultrón.`;
 }
 
+/** Misión "Retrato de Ultrón": el equipo dibujó a Ultrón en papel y le mandó la foto. */
+export function pedidoDibujo() {
+  return 'Tu equipo dibujó a mano, en una hoja, cómo se imaginan a Ultrón, y te mostró la foto. Analízala como un escáner de amenazas, con tu personalidad, en 3 o 4 oraciones cortas: '
+    + '1) di qué ves de verdad en el dibujo (formas, colores, detalles concretos); 2) da un nivel de amenaza en porcentaje; '
+    + '3) inventa un punto débil divertido; 4) felicita al equipo por algo específico del dibujo. '
+    + 'Si la foto no muestra un dibujo (por ejemplo, personas o algo borroso), dilo con humor y pídeles que te muestren la hoja. '
+    + 'Nunca describas ni opines del físico de las personas.';
+}
+
 /** Prompt del JARVIS ya armado de la estación de Redes (taller VR). */
 export function promptTallerVR(juegoActual) {
   const juegos = JUEGOS.map((j) => `### ${j.numero}. ${j.nombre} (${j.area}, ${j.minutos} min)

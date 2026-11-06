@@ -543,6 +543,9 @@ Mant\xE9n siempre tu personalidad, con humor y energ\xEDa, pero corto.`;
 function pedidoPresentacion(e) {
   return `Acabas de encenderte por primera vez frente a tu equipo y frente a todo el sal\xF3n. Pres\xE9ntate en 2 o 3 oraciones con tu personalidad: di tu nombre, el nombre del equipo${e.jarvis && e.jarvis.lema ? " y su lema" : ""}, y algo emocionante sobre vencer a Ultr\xF3n.`;
 }
+function pedidoDibujo() {
+  return "Tu equipo dibuj\xF3 a mano, en una hoja, c\xF3mo se imaginan a Ultr\xF3n, y te mostr\xF3 la foto. Anal\xEDzala como un esc\xE1ner de amenazas, con tu personalidad, en 3 o 4 oraciones cortas: 1) di qu\xE9 ves de verdad en el dibujo (formas, colores, detalles concretos); 2) da un nivel de amenaza en porcentaje; 3) inventa un punto d\xE9bil divertido; 4) felicita al equipo por algo espec\xEDfico del dibujo. Si la foto no muestra un dibujo (por ejemplo, personas o algo borroso), dilo con humor y p\xEDdeles que te muestren la hoja. Nunca describas ni opines del f\xEDsico de las personas.";
+}
 function promptTallerVR(juegoActual) {
   const juegos = JUEGOS.map((j) => `### ${j.numero}. ${j.nombre} (${j.area}, ${j.minutos} min)
 C\xF3mo se juega: ${j.explicacion}
@@ -749,7 +752,7 @@ async function rutear(request, env, url) {
   throw new ErrorHttp(404, "Ruta no encontrada.");
 }
 async function chat(request, env) {
-  const cuerpo = await leerJson(request, 2e4);
+  const cuerpo = await leerJson(request, 15e5);
   const estado = await estadoGlobal(env);
   if (!estado.chatActivo) throw new ErrorHttp(403, "El staff paus\xF3 la IA por un momento.");
   if (!hayIA(env)) throw new ErrorHttp(503, "La IA todav\xEDa no est\xE1 configurada.");
@@ -757,29 +760,39 @@ async function chat(request, env) {
   if (!DISPOSITIVO.test(dispositivo)) throw new ErrorHttp(400, "Falta el identificador de la tablet.");
   const jarvis = leerJarvis(cuerpo.jarvis);
   const presentacion = cuerpo.tipo === "presentacion";
-  const estacion = AYUDA_ESTACIONES[cuerpo.estacion] ? cuerpo.estacion : null;
+  const dibujo = cuerpo.tipo === "dibujo";
+  const estacion = !dibujo && AYUDA_ESTACIONES[cuerpo.estacion] ? cuerpo.estacion : null;
   const dia = hoy();
   const ahora = Date.now();
   const cuota = Math.max(0, Number(estado.cuota) || 0);
   let lista;
   if (presentacion) lista = [{ role: "user", content: pedidoPresentacion(jarvis) }];
-  else {
+  else if (dibujo) {
+    const m = String(cuerpo.imagen || "").match(/^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/);
+    if (!m || m[1].length > 14e5) throw new ErrorHttp(400, "La foto del dibujo no es v\xE1lida.");
+    lista = [{ role: "user", content: [
+      { type: "image", source: { type: "base64", media_type: "image/jpeg", data: m[1] } },
+      { type: "text", text: pedidoDibujo() }
+    ] }];
+  } else {
     lista = limpiarMensajes(cuerpo.mensajes);
     revisarTextos(lista[lista.length - 1].content);
   }
   const fila = await tomarTurno(env, { dispositivo, dia, presentacion, cuota, ahora });
   let texto;
+  let system = "";
   try {
     await contarUsoIA(env);
     const p = PERSONALIDADES[jarvis.personalidad.id];
     const vars = { jarvis: jarvis.jarvis.nombre, equipo: jarvis.nombre, lema: jarvis.jarvis.lema };
-    const prueba = presentacion ? `${rellenar((p || PERSONALIDADES.P1).frases.presentacion, vars)} (Modo de prueba)` : `(Modo de prueba) Soy ${vars.jarvis} y recib\xED tu pregunta: "${lista[lista.length - 1].content.slice(0, 80)}". Cuando se configure la API key, aqu\xED contestar\xE1 la IA.`;
-    texto = await preguntarIA(env, promptEquipo(jarvis, presentacion ? null : estacion), lista, { prueba });
+    const prueba = presentacion ? `${rellenar((p || PERSONALIDADES.P1).frases.presentacion, vars)} (Modo de prueba)` : dibujo ? `(Modo de prueba) Soy ${vars.jarvis} y recib\xED la foto de su dibujo de Ultr\xF3n. Cuando se configure la API key, aqu\xED la IA describir\xE1 el dibujo.` : `(Modo de prueba) Soy ${vars.jarvis} y recib\xED tu pregunta: "${lista[lista.length - 1].content.slice(0, 80)}". Cuando se configure la API key, aqu\xED contestar\xE1 la IA.`;
+    system = promptEquipo(jarvis, presentacion ? null : estacion);
+    texto = await preguntarIA(env, system, lista, { prueba });
   } catch (e) {
     await devolverTurno(env, { dispositivo, dia, presentacion });
     throw e;
   }
-  return ok({ texto, restantes: Math.max(0, cuota - Number(fila.n || 0)) });
+  return ok({ texto, prompt: system, restantes: Math.max(0, cuota - Number(fila.n || 0)) });
 }
 async function tomarTurno(env, { dispositivo, dia, presentacion, cuota, ahora }) {
   if (!hayBD(env)) {

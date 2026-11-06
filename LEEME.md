@@ -68,6 +68,15 @@ Todo el Worker está en un solo archivo: [`cloudflare/worker.js`](cloudflare/wor
 4. Copien la dirección del Worker (arriba, algo como `https://jarvis-codexia.SU-CUENTA.workers.dev`). Pónganla en `js/config.js` → `API_URL` y suban el cambio a GitHub (o mándenmela y yo lo hago).
 5. **Opcional, la base de datos:** **Storage & Databases** → **D1** → **Create** → nombre `jarvis-codexia`. Luego en el Worker → **Settings** → **Bindings** → **Add** → **D1 database**, nombre de variable `DB`, elijan la base y den **Deploy**. Las tablas se crean solas.
 
+**Probarlo antes de cambiar `config.js`:** abran `https://mparra37.github.io/jarvis-codexia/?api=https://jarvis-codexia.SU-CUENTA.workers.dev` (con la dirección de su Worker). Esa pestaña usa el Worker sin tocar el código; al cerrarla, todo vuelve a como estaba.
+
+**Probar la súper inteligencia:**
+1. `staff.html?api=…` (o `staff.html` si ya está en `config.js`) → PIN → debe decir **IA: configurada (claude-opus-5-5)**.
+2. En la app, armen y enciendan un JARVIS. Escaneen la tarjeta **H4** → toquen **✨ Probarla: pregúntenle lo que sea**.
+3. Pregunten algo que el cerebro básico no sabe: “Escribe un rap de 4 líneas sobre nuestro equipo” o “¿Por qué el cielo es azul?”. La respuesta dice **✨ súper inteligencia** y trae **Ver el prompt**: ahí se ve exactamente lo que JARVIS le mandó a la IA (sus instrucciones con lo que programaron + la pregunta).
+4. En Misiones → **Retrato de Ultrón**: con la súper inteligencia, la IA mira la foto del dibujo y lo describe de verdad.
+5. En el panel del staff revisen “Uso de hoy” y prueben **Pausa**: las tablets siguen con el cerebro básico.
+
 **¿Hace falta la base de datos?** No. Sin ella todo funciona, con dos diferencias: la batería por tablet, la pausa y los ajustes del staff viven en la memoria del Worker (Cloudflare la reinicia de vez en cuando y entonces vuelven a los valores de inicio), y los resultados del taller VR se quedan en la tablet de la estación en vez de juntarse en el panel del staff. Para un día de taller está bien; con la base de datos queda más firme.
 
 Ajustes opcionales: en **Variables and Secrets** agreguen variables de tipo **Text** con los nombres de la tabla de abajo (por ejemplo `MODELO` = `claude-haiku-5-5`). Si no ponen nada, se usan los valores de la tabla.

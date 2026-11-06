@@ -173,8 +173,15 @@ h3 { font-size: 15px; text-transform: uppercase; color: var(--acento); }
 @media (min-width: 900px) { .flotante { position: static; transform: none; width: auto; } }
 
 /* ---------- vista JARVIS ---------- */
-.jarvis { display: grid; grid-template-rows: auto 1fr; min-height: calc(100dvh - 56px); padding-bottom: 76px; }
-.jarvis .escenario canvas { width: min(240px, 52vw); height: min(240px, 52vw); }
+/* "section.jarvis" y no ".jarvis": las burbujas del chat también llevan la clase "jarvis" */
+section.jarvis { display: grid; grid-template-rows: auto 1fr; min-height: calc(100vh - 56px); min-height: calc(100dvh - 56px); padding-bottom: 76px; align-content: start; }
+section.jarvis .escenario canvas { width: min(240px, 52vw); height: min(240px, 52vw); }
+/* tablet acostada: JARVIS a la izquierda y el chat a la derecha, sin tener que bajar */
+@media (min-width: 900px) and (orientation: landscape) {
+  section.jarvis { grid-template-columns: minmax(320px, 0.85fr) 1.15fr; grid-template-rows: none; align-items: start; gap: 8px; }
+  section.jarvis > .escenario { position: sticky; top: 64px; }
+  section.jarvis .contenido-pestana { max-width: none; padding-top: 16px; }
+}
 .contenido-pestana { text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7); padding: 0 16px 16px; max-width: 760px; width: 100%; margin: 0 auto; }
 .pestanas {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 18;
@@ -201,7 +208,7 @@ h3 { font-size: 15px; text-transform: uppercase; color: var(--acento); }
 .btn-redondo.escuchando { background: var(--rojo); border-color: var(--rojo); animation: latido 1s infinite; }
 @keyframes latido { 50% { box-shadow: 0 0 0 10px rgba(255, 22, 56, 0.2); } }
 .historial { display: grid; gap: 8px; margin-top: 14px; }
-.burbuja { padding: 10px 14px; border-radius: 14px; max-width: 88%; font-size: 17px; }
+.burbuja { padding: 10px 14px; border-radius: 14px; max-width: 88%; font-size: 17px; line-height: 1.4; height: auto; min-height: 0; }
 .burbuja.yo { justify-self: end; background: rgba(63, 208, 255, 0.15); border: 1px solid rgba(63, 208, 255, 0.3); }
 .burbuja .cerebro-tag { display: block; margin-top: 4px; font-size: 12px; color: var(--tenue); }
 .burbuja.jarvis { justify-self: start; background: rgba(0, 0, 0, 0.5); border: 1px solid var(--borde); }
@@ -393,3 +400,31 @@ details.mas summary { cursor: pointer; color: var(--acento); font-weight: 700; m
   .no-imprimir { display: none !important; }
   body { background: #fff; color: #000; }
 }
+
+/* ---------- misiones extra ---------- */
+.titulo-extras { margin: 18px 0 8px; font-size: 18px; }
+.titulo-extras .tenue { font-size: 14px; font-weight: 500; }
+.visor-dibujo { position: relative; border-radius: 14px; overflow: hidden; background: #000; aspect-ratio: 4 / 3; margin-top: 10px; border: 2px solid var(--c); }
+.visor-dibujo video, .visor-dibujo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.visor-dibujo .linea-escaneo { position: absolute; left: 0; right: 0; height: 4px; background: #ff1638; box-shadow: 0 0 18px #ff1638; top: 0; display: none; }
+.visor-dibujo.analizando .linea-escaneo { display: block; animation: barrido 1.1s ease-in-out infinite alternate; }
+.visor-dibujo.analizando img { filter: grayscale(0.4) contrast(1.2); }
+.visor-dibujo.identificado { box-shadow: 0 0 0 4px rgba(255, 22, 56, 0.45); }
+@keyframes barrido { from { top: 0; } to { top: calc(100% - 4px); } }
+.amenaza { margin-top: 12px; padding: 12px 14px; border-radius: 12px; border: 2px solid #ff1638; background: rgba(255, 22, 56, 0.12); }
+.amenaza b { color: #ff4d6a; font-family: var(--titulo); letter-spacing: 0.08em; }
+.amenaza p { margin: 6px 0; font-size: 18px; }
+.amenaza .cerebro-tag { font-size: 13px; color: var(--tenue); }
+.btn-mic-grande { width: 108px; height: 108px; border-radius: 50%; border: 3px solid var(--c); background: rgba(0, 0, 0, 0.35); color: var(--c); display: inline-grid; place-items: center; cursor: pointer; }
+.btn-mic-grande .icono { width: 46px; height: 46px; }
+.btn-mic-grande.escuchando { background: var(--c); color: #02121c; animation: pulso 1s infinite; }
+.trabalenguas { font-size: clamp(22px, 3.6vw, 30px); font-weight: 700; text-align: center; margin: 14px 0; line-height: 1.3; color: var(--c); }
+.puntaje-tb { display: grid; gap: 6px; justify-items: center; margin: 4px 0 10px; }
+.puntaje-tb b { font-family: var(--titulo); font-size: 44px; color: var(--c); }
+.puntaje-tb .barra-p { width: min(320px, 90%); }
+/* súper inteligencia */
+#cerebro-info.aviso-ia { font-size: 16px !important; padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(61, 255, 154, 0.5); background: rgba(61, 255, 154, 0.1); color: inherit; }
+.ver-prompt { font-size: 12px; min-height: 0; padding: 0; color: var(--acento); }
+.modal.modal-ancho { width: min(820px, 100%); }
+.paso-prompt { font-size: 16px; margin: 14px 0 6px; color: var(--acento); }
+.prompt-sistema { max-height: 34vh; overflow: auto; white-space: pre-wrap; font-size: 13px; }

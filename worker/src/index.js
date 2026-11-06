@@ -17,7 +17,7 @@ import { llamarClaude } from './ia.js';
 import { ErrorHttp } from './errores.js';
 import { primerTextoSucio } from '../../js/filtro.js';
 import { leerCodigoVR } from '../../js/codigo_vr.js';
-import { promptEquipo, pedidoPresentacion, promptTallerVR } from './prompts.js';
+import { promptEquipo, pedidoPresentacion, pedidoDibujo, promptTallerVR } from './prompts.js';
 import { PERSONALIDADES, rellenar } from '../../js/personalidades.js';
 import { AYUDA_ESTACIONES } from '../../js/estaciones_datos.js';
 
@@ -225,7 +225,7 @@ async function rutear(request, env, url) {
 
 // ---------- Cerebro IA de una tablet ----------
 async function chat(request, env) {
-  const cuerpo = await leerJson(request, 20000);
+  const cuerpo = await leerJson(request, 1500000); // la foto de un dibujo puede pesar hasta ~1 MB
   const estado = await estadoGlobal(env);
   if (!estado.chatActivo) throw new ErrorHttp(403, 'El staff pausó la IA por un momento.');
   if (!hayIA(env)) throw new ErrorHttp(503, 'La IA todavía no está configurada.');
@@ -233,34 +233,48 @@ async function chat(request, env) {
   if (!DISPOSITIVO.test(dispositivo)) throw new ErrorHttp(400, 'Falta el identificador de la tablet.');
   const jarvis = leerJarvis(cuerpo.jarvis);
   const presentacion = cuerpo.tipo === 'presentacion';
-  const estacion = AYUDA_ESTACIONES[cuerpo.estacion] ? cuerpo.estacion : null;
+  const dibujo = cuerpo.tipo === 'dibujo';
+  const estacion = !dibujo && AYUDA_ESTACIONES[cuerpo.estacion] ? cuerpo.estacion : null;
   const dia = hoy();
   const ahora = Date.now();
   const cuota = Math.max(0, Number(estado.cuota) || 0);
 
   let lista;
   if (presentacion) lista = [{ role: 'user', content: pedidoPresentacion(jarvis) }];
-  else {
+  else if (dibujo) {
+    // misión "Retrato de Ultrón": una foto JPEG del dibujo y el pedido de analizarlo
+    const m = String(cuerpo.imagen || '').match(/^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/);
+    if (!m || m[1].length > 1400000) throw new ErrorHttp(400, 'La foto del dibujo no es válida.');
+    lista = [{ role: 'user', content: [
+      { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: m[1] } },
+      { type: 'text', text: pedidoDibujo() },
+    ] }];
+  } else {
     lista = limpiarMensajes(cuerpo.mensajes);
     revisarTextos(lista[lista.length - 1].content);
   }
   const fila = await tomarTurno(env, { dispositivo, dia, presentacion, cuota, ahora });
 
   let texto;
+  let system = '';
   try {
     await contarUsoIA(env);
     const p = PERSONALIDADES[jarvis.personalidad.id];
     const vars = { jarvis: jarvis.jarvis.nombre, equipo: jarvis.nombre, lema: jarvis.jarvis.lema };
     const prueba = presentacion
       ? `${rellenar((p || PERSONALIDADES.P1).frases.presentacion, vars)} (Modo de prueba)`
-      : `(Modo de prueba) Soy ${vars.jarvis} y recibí tu pregunta: "${lista[lista.length - 1].content.slice(0, 80)}". Cuando se configure la API key, aquí contestará la IA.`;
-    texto = await preguntarIA(env, promptEquipo(jarvis, presentacion ? null : estacion), lista, { prueba });
+      : dibujo
+        ? `(Modo de prueba) Soy ${vars.jarvis} y recibí la foto de su dibujo de Ultrón. Cuando se configure la API key, aquí la IA describirá el dibujo.`
+        : `(Modo de prueba) Soy ${vars.jarvis} y recibí tu pregunta: "${lista[lista.length - 1].content.slice(0, 80)}". Cuando se configure la API key, aquí contestará la IA.`;
+    system = promptEquipo(jarvis, presentacion ? null : estacion);
+    texto = await preguntarIA(env, system, lista, { prueba });
   } catch (e) {
     // si la IA falló, se devuelve la pregunta a la batería
     await devolverTurno(env, { dispositivo, dia, presentacion });
     throw e;
   }
-  return ok({ texto, restantes: Math.max(0, cuota - Number(fila.n || 0)) });
+  // el prompt de sistema va de regreso para que el equipo vea "cómo le preguntó JARVIS a la IA"
+  return ok({ texto, prompt: system, restantes: Math.max(0, cuota - Number(fila.n || 0)) });
 }
 
 /** Cuenta una pregunta (o presentación) de una tablet hoy. Lanza 402 sin batería y 429 si va muy rápido. */

@@ -180,7 +180,7 @@ let misionesHechas = null;
 /** Celebra cada misión que se acaba de cumplir. */
 function revisarMisiones() {
   if (!eq()) { misionesHechas = null; return; }
-  const ahora = new Set(misionesVisibles(conIA()).filter((m) => cumplida(m, eq())).map((m) => m.id));
+  const ahora = new Set(misionesVisibles(conIA(), puedeEscuchar).filter((m) => cumplida(m, eq())).map((m) => m.id));
   if (misionesHechas) {
     const nuevas = [...ahora].filter((id) => !misionesHechas.has(id) && id !== 'encender');
     nuevas.forEach((id, i) => {
@@ -193,7 +193,7 @@ function revisarMisiones() {
 }
 
 function misionesPendientes() {
-  return misionesVisibles(conIA()).filter((m) => m.fase === 2 && !m.opcional && !cumplida(m, eq())).length;
+  return misionesVisibles(conIA(), puedeEscuchar).filter((m) => m.fase === 2 && !m.opcional && !cumplida(m, eq())).length;
 }
 
 function detalleJarvis() {
@@ -235,7 +235,7 @@ function htmlModulos() {
 // ---------- taller: los pasos del armado, uno a la vez ----------
 // pasoVisto: el paso que se está viendo (se puede regresar a uno hecho). null = el primero que falta.
 let pasoVisto = null;
-const pasosArmado = () => misionesVisibles(conIA()).filter((m) => m.fase === 1);
+const pasosArmado = () => misionesVisibles(conIA(), puedeEscuchar).filter((m) => m.fase === 1);
 const enArmado = () => Boolean(eq()) && !eq().encendido;
 
 /** El paso que está en pantalla: el que eligieron (si ya se puede ver) o el primero que falta. */
@@ -818,8 +818,18 @@ function editorHabilidades(m, nuevo, habilidad) {
     cuerpo = `${cabezaModulo(m, false)}
       <div class="lista">${Object.entries(HABILIDADES).filter(([, h]) => h.id !== 'chat' || conIA()).map(([cod, h]) => `<div class="item"><div class="cabeza"><b>${icono(h.id)} ${esc(h.nombre)}</b><span class="etiqueta ${tieneHabilidad(h.id) ? 'ok' : ''}">${tieneHabilidad(h.id) ? 'Instalada' : `Tarjeta ${cod}`}</span></div><span class="tenue">${esc(h.desc)}</span></div>`).join('')}</div>`;
   }
-  const md = modal(`${cuerpo}<div class="fila-botones acciones-hoja">${listoBtn()}</div>`, { color: m.color });
-  md.el.querySelector('[data-listo]').addEventListener('click', md.cerrar);
+  const probarIA = habilidad && habilidad.id === 'chat' && conIA() && eq().encendido;
+  const md = modal(`${cuerpo}<div class="fila-botones acciones-hoja">${probarIA ? '<button class="btn btn-primario btn-grande" data-probar-ia style="flex:1">✨ Probarla: pregúntenle lo que sea</button>' : listoBtn()}</div>`, { color: m.color });
+  md.el.querySelector('[data-listo]')?.addEventListener('click', md.cerrar);
+  md.el.querySelector('[data-probar-ia]')?.addEventListener('click', () => {
+    md.cerrar();
+    pestana = 'hablar';
+    pintarPestanas();
+    pintarPestana();
+    const input = $('#pregunta');
+    if (input) { input.placeholder = 'Ej. ¿Por qué el cielo es azul?'; input.focus(); }
+    decir('Súper inteligencia en línea. Pregúntenme lo que sea.');
+  });
 }
 
 // ---------- encendido ----------
@@ -936,12 +946,14 @@ function pintarPestana() {
 }
 
 // --- hablar ---
+// con la súper inteligencia: preguntas abiertas que el cerebro básico no podría contestar
+const PREGUNTAS_IA = ['¿Por qué el cielo es azul?', 'Escribe un rap de 4 líneas sobre nuestro equipo', 'Inventa un plan para vencer a Ultrón', '¿Cómo funciona un hoyo negro?', 'Explícame la inteligencia artificial como si tuviera 10 años', '¿Qué carrera me recomiendas si me gustan los videojuegos?', 'Cuéntanos un dato curioso de México'];
 const PREGUNTAS = ['¿Qué es una dirección IP?', '¿Qué estudia alguien de ITC?', '¿Cómo sé si una contraseña es segura?', '¿Qué es un algoritmo?', '¿Qué sigue en la agenda?', '¿Cómo vencemos a Ultrón?', '¿Cómo funcionas?'];
 
 function pestanaHablar(cont) {
   const est = estacionActual();
   const a = est ? AYUDA_ESTACIONES[est] : null;
-  const sugeridas = [...(est ? a.preguntas : PREGUNTAS)].sort(() => Math.random() - 0.5).slice(0, 2);
+  const sugeridas = [...(est ? a.preguntas : cerebroIA() ? PREGUNTAS_IA : PREGUNTAS)].sort(() => Math.random() - 0.5).slice(0, 2);
   cont.innerHTML = `
     <form class="chat-entrada" id="f-chat">
       ${puedeEscuchar ? `<button type="button" class="btn-redondo" id="mic" aria-label="Hablar">${icono('mic')}</button>` : ''}
@@ -1003,8 +1015,26 @@ function pestanaHablar(cont) {
       if (texto) preguntar(texto); else subtitulo('No te escuché bien. Intenta otra vez o escríbelo.');
     });
   }
+  cont.querySelector('#historial').addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-prompt]');
+    if (b) verPrompt(Number(b.dataset.prompt));
+  });
   pintarCerebro();
   pintarHistorial();
+}
+
+/** "Así le preguntó JARVIS a la IA": el prompt de sistema, la pregunta y la respuesta. */
+function verPrompt(i) {
+  const m = historial[i];
+  if (!m) return;
+  const pregunta = [...historial.slice(0, i)].reverse().find((x) => x.role === 'user');
+  const md = modal(`<h2>Así le preguntó ${esc(eq().jarvis.nombre)} a la IA</h2>
+    <p class="tenue" style="margin-top:0">Con cada pregunta, JARVIS le manda a la IA sus <b>instrucciones</b> (el prompt de sistema, armado con lo que ustedes programaron) y la <b>conversación</b>. La IA contesta siguiendo esas instrucciones.</p>
+    <h3 class="paso-prompt">1 · Instrucciones (prompt de sistema)</h3><pre class="codigo prompt-sistema">${esc(m.prompt)}</pre>
+    <h3 class="paso-prompt">2 · La pregunta</h3><pre class="codigo">${esc(pregunta ? pregunta.content : '')}</pre>
+    <h3 class="paso-prompt">3 · Lo que contestó la IA</h3><p style="font-size:18px;margin:0">${esc(m.content)}</p>
+    <div class="fila-botones acciones-hoja"><button class="btn btn-primario btn-grande" data-listo style="flex:1">Entendido</button></div>`, { clase: 'modal-ancho' });
+  md.el.querySelector('[data-listo]').addEventListener('click', md.cerrar);
 }
 
 /** Ventana para elegir el taller donde están (para darles pistas de ese taller). */
@@ -1028,12 +1058,13 @@ function pintarCerebro() {
   pintarBarra();
   const el = $('#cerebro-info');
   if (!el) return;
+  el.classList.toggle('aviso-ia', cerebroIA() && Date.now() >= iaFallaHasta && restantesIA !== 0);
   if (cerebroIA()) {
     el.innerHTML = Date.now() < iaFallaHasta
       ? '✨ La súper inteligencia no responde por ahora: contesto con mi 🧠 cerebro básico.'
       : restantesIA === 0
         ? '✨ Se acabaron las preguntas de súper inteligencia de hoy: sigo con mi 🧠 cerebro básico.'
-        : `✨ Súper inteligencia activa${typeof restantesIA === 'number' ? ` · ⚡ ${restantesIA} preguntas por hoy` : ''}.`;
+        : `✨ <b>Súper inteligencia activa:</b> pregúntenme lo que sea.${typeof restantesIA === 'number' ? ` · ⚡ ${restantesIA} preguntas por hoy` : ''}`;
   } else {
     el.innerHTML = '🧠 Cerebro básico: contesto con textos escritos por personas. Pregúntenme de CODEXIA, de los talleres o de tecnología.';
   }
@@ -1042,7 +1073,9 @@ function pintarCerebro() {
 function pintarHistorial() {
   const h = $('#historial');
   if (!h) return;
-  h.innerHTML = historial.slice(-12).reverse().map((m) => `<div class="burbuja ${m.role === 'user' ? 'yo' : 'jarvis'}">${esc(m.content)}${m.role !== 'user' && m.cerebro ? `<span class="cerebro-tag">${m.cerebro === 'ia' ? '✨ IA' : '🧠 cerebro básico'}</span>` : ''}</div>`).join('');
+  const desde = Math.max(0, historial.length - 12);
+  h.innerHTML = historial.slice(desde).map((m, k) => ({ m, i: desde + k })).reverse().map(({ m, i }) => `<div class="burbuja ${m.role === 'user' ? 'yo' : 'jarvis'}">${esc(m.content)}${m.role !== 'user' && m.cerebro
+    ? `<span class="cerebro-tag">${m.cerebro === 'ia' ? '✨ súper inteligencia' : '🧠 cerebro básico'}${m.cerebro === 'ia' && m.prompt ? ` · <button class="btn-texto ver-prompt" data-prompt="${i}">Ver el prompt</button>` : ''}</span>` : ''}</div>`).join('');
 }
 
 /** Pregunta: primero el Cerebro IA (si lo tienen y funciona); si no, o si falla, el cerebro básico. */
@@ -1052,6 +1085,7 @@ async function preguntar(texto) {
   pintarHistorial();
   let respuesta = null;
   let cerebro = 'basico';
+  let prompt = '';
   if (usarIA() && textoLimpio(texto)) {
     esperandoIA = true;
     subtitulo('Pensando…');
@@ -1061,6 +1095,7 @@ async function preguntar(texto) {
       const r = await llamar('POST', '/api/chat', { dispositivo: dispositivo(), jarvis: datosParaIA(), mensajes, estacion: estacionActual() }, { timeout: 20000 });
       respuesta = r.texto;
       cerebro = 'ia';
+      prompt = r.prompt || '';
       if (typeof r.restantes === 'number') restantesIA = r.restantes;
     } catch (e) {
       if (typeof e.datos.restantes === 'number') restantesIA = e.datos.restantes;
@@ -1076,7 +1111,7 @@ async function preguntar(texto) {
     const r = responder(texto, { equipo: eq(), estacion: estacionActual(), cerebroIA: cerebroIA() });
     respuesta = r.accion === 'pista' ? pistaDeChat() : r.texto;
   }
-  historial.push({ role: 'assistant', content: respuesta, cerebro });
+  historial.push({ role: 'assistant', content: respuesta, cerebro, ...(prompt ? { prompt } : {}) });
   estado.cambiar({ logros: { preguntas: ((eq().logros && eq().logros.preguntas) || 0) + 1 } });
   guardarHistorial();
   pintarHistorial();
@@ -1244,26 +1279,30 @@ function verFoto(f) {
 
 // --- misiones ---
 function pestanaMisiones(cont) {
-  const lista = misionesVisibles(conIA()).filter((m) => m.fase === 2);
-  const pendientes = lista.filter((m) => !cumplida(m, eq()));
-  const hechas = lista.filter((m) => cumplida(m, eq()));
-  const total = lista.filter((m) => !m.opcional).length;
-  const listas = hechas.filter((m) => !m.opcional).length;
+  const lista = misionesVisibles(conIA(), puedeEscuchar).filter((m) => m.fase === 2);
+  const obligatorias = lista.filter((m) => !m.opcional);
+  const pendientes = obligatorias.filter((m) => !cumplida(m, eq()));
+  const extras = lista.filter((m) => m.opcional);
+  const hechas = obligatorias.filter((m) => cumplida(m, eq()));
+  const total = obligatorias.length;
+  const textoComo = (m) => m.como.replace(/\{jarvis\}/g, eq().jarvis.nombre);
   const tarjetaMision = (m, destacada) => {
     const hecha = cumplida(m, eq());
     const prog = m.progreso ? m.progreso(eq()) : null;
+    const boton = m.accion ? (hecha ? 'Otra vez' : '¡Jugar!') : m.ir ? 'Ir' : 'Escanear';
     return `<div class="mision-item ${destacada ? 'destacada' : ''} ${hecha ? 'hecha' : ''}" style="--c:${m.color}">
       <span class="mision-icono">${hecha ? '✓' : icono(m.icono)}</span>
-      <div><b>${esc(m.titulo)}${m.opcional ? ' <span class="etiqueta">extra</span>' : ''}${prog && !hecha ? ` <span class="mision-estado">${prog[0]}/${prog[1]}</span>` : ''}</b>
-        ${hecha ? '' : `<span class="tenue">${esc(m.como)}</span>`}</div>
-      ${hecha ? '' : `<button class="btn btn-chico ${destacada ? 'btn-primario' : ''}" data-hacer="${m.id}">${m.ir ? 'Ir' : 'Escanear'}</button>`}
+      <div><b>${esc(m.titulo)}${prog && !hecha ? ` <span class="mision-estado">${prog[0]}/${prog[1]}</span>` : ''}</b>
+        ${hecha && !m.accion ? '' : `<span class="tenue">${esc(textoComo(m))}</span>`}</div>
+      ${hecha && !m.accion ? '' : `<button class="btn btn-chico ${destacada ? 'btn-primario' : ''}" data-hacer="${m.id}">${boton}</button>`}
     </div>`;
   };
-  cont.innerHTML = `<div class="cabeza-misiones"><h2 style="margin:0">Misiones</h2><span class="mono">${listas}/${total}</span></div>
-    <div class="progreso" style="margin:8px 0 12px"><div class="barra-p"><i style="width:${(listas / Math.max(1, total)) * 100}%"></i></div></div>
-    ${pendientes.filter((m) => !m.opcional).length ? '' : `<div class="panel centro" style="margin-bottom:12px">🏆 <b>¡Completaron todas las misiones!</b><br><span class="tenue">Sigan platicando con ${esc(eq().jarvis.nombre)} o prueben otras tarjetas.</span></div>`}
+  cont.innerHTML = `<div class="cabeza-misiones"><h2 style="margin:0">Misiones</h2><span class="mono">${hechas.length}/${total}</span></div>
+    <div class="progreso" style="margin:8px 0 12px"><div class="barra-p"><i style="width:${(hechas.length / Math.max(1, total)) * 100}%"></i></div></div>
+    ${pendientes.length ? '' : `<div class="panel centro" style="margin-bottom:12px">🏆 <b>¡Completaron todas las misiones!</b><br><span class="tenue">Prueben los extras de abajo o sigan platicando con ${esc(eq().jarvis.nombre)}.</span></div>`}
     <div class="lista">${pendientes.slice(0, 3).map((m, i) => tarjetaMision(m, i === 0)).join('')}
       ${pendientes.length > 3 ? `<div class="mision-item bloqueada"><span class="mision-icono">🔒</span><div><b>${pendientes.length - 3} misiones más</b><span class="tenue">Se desbloquean al cumplir estas.</span></div></div>` : ''}</div>
+    ${extras.length ? `<h3 class="titulo-extras">⭐ Extra para divertirse <span class="tenue">(opcionales)</span></h3><div class="lista">${extras.map((m) => tarjetaMision(m)).join('')}</div>` : ''}
     ${hechas.length ? `<details class="mas"><summary>Completadas (${hechas.length})</summary><div class="lista">${hechas.map((m) => tarjetaMision(m)).join('')}</div></details>` : ''}
     <div class="fila-botones" style="margin-top:14px">
       <button class="btn btn-chico" data-accion="escanear">${icono('qr')} Escanear tarjeta</button>
@@ -1273,6 +1312,7 @@ function pestanaMisiones(cont) {
     </div>`;
   cont.querySelectorAll('[data-hacer]').forEach((b) => b.addEventListener('click', () => {
     const m = MISIONES.find((x) => x.id === b.dataset.hacer);
+    if (m.accion) { ({ dibujo: misionDibujo, despertar: misionDespertar, trabalenguas: misionTrabalenguas })[m.accion](); return; }
     if (m.ir === 'camara' && !tieneHabilidad('camara')) { aviso('Primero escaneen la tarjeta CÁMARA.'); abrirEscanerTarjetas(); return; }
     if (m.ir) { pestana = m.ir; pintarPestanas(); pintarPestana(); return; }
     abrirEscanerTarjetas();
@@ -1281,6 +1321,195 @@ function pestanaMisiones(cont) {
   cont.querySelector('[data-accion="modulos"]').addEventListener('click', verModulos);
   cont.querySelector('[data-accion="ficha"]').addEventListener('click', abrirFicha);
   cont.querySelector('[data-accion="reencender"]').addEventListener('click', encender);
+}
+
+// ---------- misiones extra (opcionales, para divertirse) ----------
+const quitarAcentos = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9ñ ]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+/** Retrato de Ultrón: dibujan a Ultrón en papel, le toman foto y JARVIS lo "escanea". */
+function misionDibujo() {
+  const md = modal(`<div class="cabeza-modulo" style="--c:#ff1638">${icono('ultron')}<div><h2>Retrato de Ultrón</h2></div></div>
+    <p class="sabias-corto">✏️ En una hoja, dibujen a mano cómo se imaginan a Ultrón. Cuando esté listo, apunten la cámara al dibujo.</p>
+    <div class="visor-dibujo" id="vd"><video muted playsinline></video></div>
+    <p class="tenue centro" id="vd-estado" style="font-size:15px;margin:6px 0 0">Abriendo cámara…</p>
+    <div id="vd-resultado"></div>
+    <div class="fila-botones acciones-hoja" id="vd-botones"><button class="btn btn-primario btn-grande" data-foto style="flex:1">📸 Escanear el dibujo</button></div>`,
+  { color: '#ff1638', alCerrar: () => cerrarCamara() });
+  const video = md.el.querySelector('video');
+  const estadoTxt = md.el.querySelector('#vd-estado');
+  abrirCamara(video, { usarFrente: false })
+    .then(() => { estadoTxt.textContent = 'Que se vea toda la hoja, con buena luz.'; })
+    .catch(() => { estadoTxt.textContent = 'No se pudo abrir la cámara. Den permiso de cámara al navegador.'; });
+  md.el.querySelector('[data-foto]').addEventListener('click', async (ev) => {
+    if (!video.videoWidth) { aviso('La cámara todavía no está lista.', { mal: true }); return; }
+    ev.currentTarget.disabled = true;
+    // la foto chica (para analizarla) y la de la galería (con marco)
+    const escala = Math.min(1, 1024 / Math.max(video.videoWidth, video.videoHeight));
+    const lienzo = document.createElement('canvas');
+    lienzo.width = Math.round(video.videoWidth * escala);
+    lienzo.height = Math.round(video.videoHeight * escala);
+    const g = lienzo.getContext('2d', { willReadFrequently: true });
+    g.drawImage(video, 0, 0, lienzo.width, lienzo.height);
+    const imagen = lienzo.toDataURL('image/jpeg', 0.78);
+    const paraGaleria = await capturar(video, { titulo: 'Retrato de Ultrón', subtitulo: `${eq().nombre} · ${eq().jarvis.nombre}`, color: '#ff1638' }).catch(() => null);
+    cerrarCamara();
+    const visor = md.el.querySelector('#vd');
+    visor.innerHTML = `<img src="${imagen}" alt="Dibujo de Ultrón"><div class="linea-escaneo"></div>`;
+    visor.classList.add('analizando');
+    estadoTxt.textContent = 'Analizando amenaza…';
+    subtitulo('Analizando amenaza…');
+    sonido('escaneo');
+    if (nucleo) nucleo.hablando(true);
+    const minimo = new Promise((r) => setTimeout(r, 2600));
+    let texto = null;
+    let cerebro = 'basico';
+    if (usarIA()) {
+      try {
+        const r = await llamar('POST', '/api/chat', { tipo: 'dibujo', dispositivo: dispositivo(), jarvis: datosParaIA(), imagen }, { timeout: 30000 });
+        texto = r.texto;
+        cerebro = 'ia';
+        if (typeof r.restantes === 'number') restantesIA = r.restantes;
+      } catch (e) {
+        if (e.datos && typeof e.datos.restantes === 'number') restantesIA = e.datos.restantes;
+      }
+    }
+    if (!texto) texto = analisisBasico(g, lienzo.width, lienzo.height);
+    await minimo;
+    if (nucleo) nucleo.hablando(false);
+    visor.classList.remove('analizando');
+    visor.classList.add('identificado');
+    sonido('ultron');
+    if (navigator.vibrate) navigator.vibrate([60, 40, 120]);
+    estadoTxt.textContent = '';
+    md.el.querySelector('#vd-resultado').innerHTML = `<div class="amenaza"><b>⚠ AMENAZA IDENTIFICADA</b><p>${esc(texto)}</p>
+      <span class="cerebro-tag">${cerebro === 'ia' ? '✨ Analizado por la súper inteligencia' : '🧠 Análisis del cerebro básico'}${paraGaleria ? ' · Guardado en la galería' : ''}</span></div>`;
+    md.el.querySelector('#vd-botones').innerHTML = '<button class="btn btn-grande" data-otro>📸 Otro dibujo</button><button class="btn btn-primario btn-grande" data-listo style="flex:1">Listo</button>';
+    md.el.querySelector('[data-otro]').addEventListener('click', () => { md.cerrar(); misionDibujo(); });
+    md.el.querySelector('[data-listo]').addEventListener('click', md.cerrar);
+    if (paraGaleria) guardarFoto(paraGaleria, { equipo: eq().creado, lugar: 'Retrato de Ultrón' }).catch(() => {});
+    estado.cambiar({ logros: { dibujo: 1 } });
+    decir(texto);
+  });
+}
+
+/** Sin IA: un "escaneo" con lo que se puede medir de la foto (tinta, rojo, colores). */
+function analisisBasico(g, w, h) {
+  const datos = g.getImageData(0, 0, w, h).data;
+  let tinta = 0; let rojo = 0; let color = 0; let n = 0;
+  for (let i = 0; i < datos.length; i += 16) {
+    const r = datos[i]; const v = datos[i + 1]; const a = datos[i + 2];
+    const lum = 0.3 * r + 0.59 * v + 0.11 * a;
+    const sat = Math.max(r, v, a) - Math.min(r, v, a);
+    if (lum < 95) tinta++;
+    if (r > 130 && r > v * 1.45 && r > a * 1.45) rojo++;
+    if (sat > 70) color++;
+    n++;
+  }
+  tinta /= n; rojo /= n; color /= n;
+  const alAzarDe = (l) => l[Math.floor(Math.random() * l.length)];
+  const rasgo = rojo > 0.004 ? 'Detecto rojo: ojos láser activados.'
+    : color > 0.12 ? 'Veo muchos colores: es un Ultrón con mucho estilo.'
+      : 'Puro trazo de lápiz: es un Ultrón en modo sigiloso.';
+  const detalle = tinta > 0.16 ? 'Tiene muchísimos detalles: se nota que lo dibujaron con ganas.' : 'Trazos limpios y precisos: un Ultrón minimalista.';
+  const nivel = Math.min(99, 62 + Math.round(tinta * 90 + rojo * 300 + color * 40 + Math.random() * 8));
+  const debil = alAzarDe(['los chistes malos', 'las cosquillas en los tornillos', 'el wifi lento', 'los gatitos', 'las matemáticas bien explicadas', 'los abrazos de equipo', 'la música de banda a todo volumen']);
+  return `Amenaza identificada: Ultrón. ${rasgo} ${detalle} Nivel de amenaza: ${nivel}%. Punto débil: ${debil}. ¡Excelente retrato, equipo ${eq().nombre}!`;
+}
+
+/** Despiértenlo con la voz: dicen "Oye, NOMBRE" al micrófono. */
+function misionDespertar() {
+  const nombre = eq().jarvis.nombre;
+  const md = modal(`<div class="cabeza-modulo" style="--c:#3fd0ff">${icono('mic')}<div><h2>Despiértenlo con la voz</h2></div></div>
+    <p class="sabias-corto">💡 Así funcionan Alexa y Siri: escuchan una <b>palabra de activación</b> y entonces despiertan.</p>
+    <p class="centro" style="font-size:22px;margin:10px 0">Digan todos juntos, fuerte:<br><b style="font-size:30px;color:var(--acento)">“¡Oye, ${esc(nombre)}!”</b></p>
+    <div class="centro"><button class="btn-mic-grande" data-mic aria-label="Escuchar">${icono('mic')}</button></div>
+    <p class="centro tenue" id="dz-estado" style="min-height:48px;font-size:17px">Toquen el micrófono y hablen.</p>
+    <div class="fila-botones acciones-hoja"><button class="btn btn-primario btn-grande" data-listo style="flex:1">Listo</button></div>`, { color: '#3fd0ff', alCerrar: () => detenerEscucha() });
+  const est = md.el.querySelector('#dz-estado');
+  const mic = md.el.querySelector('[data-mic]');
+  md.el.querySelector('[data-listo]').addEventListener('click', md.cerrar);
+  mic.addEventListener('click', async () => {
+    if (mic.classList.contains('escuchando')) { detenerEscucha(); return; }
+    callar();
+    mic.classList.add('escuchando');
+    est.textContent = 'Escuchando…';
+    const texto = await escuchar({ alParcial: (t) => { est.textContent = `“${t}”`; } });
+    mic.classList.remove('escuchando');
+    const oido = quitarAcentos(texto);
+    const ok = oido && (oido.includes(quitarAcentos(nombre)) || /\b(oye|oie|olle|hey|ey)\b/.test(oido));
+    if (ok) {
+      est.innerHTML = `<b style="color:var(--verde)">✓ ¡Lo despertaron!</b> Escuché: “${esc(texto)}”`;
+      sonido('enLinea');
+      if (nucleo) nucleo.modo('fiesta');
+      setTimeout(() => { if (nucleo) nucleo.modo(null); }, 2500);
+      estado.cambiar({ logros: { despertar: 1 } });
+      decir(`¡Aquí estoy! Me despertaron con su voz. ¿En qué les ayudo, equipo ${eq().nombre}?`);
+    } else if (texto) {
+      est.innerHTML = `Escuché: “${esc(texto)}”. Intenten otra vez, más fuerte: <b>¡Oye, ${esc(nombre)}!</b>`;
+      sonido('error');
+    } else {
+      est.textContent = 'No escuché nada. Acérquense a la tablet y hablen fuerte.';
+    }
+  });
+}
+
+const TRABALENGUAS = [
+  'Tres tristes tigres tragaban trigo en un trigal',
+  'Pablito clavó un clavito. ¿Qué clavito clavó Pablito?',
+  'Como poco coco como, poco coco compro',
+  'Pepe Pecas pica papas con un pico',
+  'El cielo está enladrillado. ¿Quién lo desenladrillará?',
+  'Erre con erre cigarro, erre con erre barril, rápido ruedan los carros cargados de azúcar del ferrocarril',
+  'Compadre, cómprame un coco. Compadre, coco no compro',
+  'Si la sierva que te sirve no te sirve como sierva, ¿de qué sirve que te sirvas de una sierva que no sirve?',
+];
+
+/** Qué tanto del trabalenguas dijeron (palabras que coinciden, en %). */
+function puntajeTrabalenguas(objetivo, dicho) {
+  const quiero = quitarAcentos(objetivo).split(' ').filter(Boolean);
+  const tengo = quitarAcentos(dicho).split(' ').filter(Boolean);
+  const bolsa = new Map();
+  tengo.forEach((p) => bolsa.set(p, (bolsa.get(p) || 0) + 1));
+  let bien = 0;
+  quiero.forEach((p) => { if (bolsa.get(p)) { bien++; bolsa.set(p, bolsa.get(p) - 1); } });
+  return Math.round((bien / Math.max(1, quiero.length)) * 100);
+}
+
+/** Duelo de trabalenguas: JARVIS lo dice, el equipo lo repite y sale un porcentaje. */
+function misionTrabalenguas(indice = Math.floor(Math.random() * TRABALENGUAS.length)) {
+  const frase = TRABALENGUAS[indice % TRABALENGUAS.length];
+  const mejor = (eq().logros && eq().logros.trabalenguas) || 0;
+  const md = modal(`<div class="cabeza-modulo" style="--c:#a78bfa">${icono('voz')}<div><h2>Duelo de trabalenguas</h2></div></div>
+    <p class="tenue" style="margin:0">Escuchen a ${esc(eq().jarvis.nombre)} y luego repítanlo al micrófono, rápido y sin trabarse.</p>
+    <p class="trabalenguas">“${esc(frase)}”</p>
+    <div class="centro"><button class="btn-mic-grande" data-mic aria-label="Repetir al micrófono">${icono('mic')}</button></div>
+    <p class="centro tenue" id="tb-estado" style="min-height:48px;font-size:17px">Cuando terminen de escucharlo, toquen el micrófono.</p>
+    <div id="tb-puntaje"></div>
+    <p class="centro tenue" style="font-size:14px;margin:0">Mejor puntaje del equipo: <b id="tb-mejor">${mejor}%</b></p>
+    <div class="fila-botones acciones-hoja">${ESCUCHAR}<button class="btn btn-grande" data-otro>🔀 Otro</button><button class="btn btn-primario btn-grande" data-listo style="flex:1">Listo</button></div>`, { color: '#a78bfa', alCerrar: () => detenerEscucha() });
+  const est = md.el.querySelector('#tb-estado');
+  const mic = md.el.querySelector('[data-mic]');
+  md.el.querySelector('[data-probar]').addEventListener('click', () => decir(frase));
+  md.el.querySelector('[data-otro]').addEventListener('click', () => { md.cerrar(); misionTrabalenguas(indice + 1); });
+  md.el.querySelector('[data-listo]').addEventListener('click', md.cerrar);
+  mic.addEventListener('click', async () => {
+    if (mic.classList.contains('escuchando')) { detenerEscucha(); return; }
+    callar();
+    mic.classList.add('escuchando');
+    est.textContent = 'Escuchando… ¡ahora!';
+    const texto = await escuchar({ alParcial: (t) => { est.textContent = `“${t}”`; } });
+    mic.classList.remove('escuchando');
+    if (!texto) { est.textContent = 'No escuché nada. Acérquense y hablen fuerte.'; return; }
+    const pts = puntajeTrabalenguas(frase, texto);
+    est.innerHTML = `Escuché: “${esc(texto)}”`;
+    const comentario = pts >= 90 ? '¡Perfecto! Ni un robot lo dice mejor.' : pts >= 60 ? '¡Muy bien! Casi perfecto.' : '¡Casi! Inténtenlo otra vez, un poco más despacio.';
+    md.el.querySelector('#tb-puntaje').innerHTML = `<div class="puntaje-tb"><b>${pts}%</b><div class="barra-p"><i style="width:${pts}%"></i></div><span>${esc(comentario)}</span></div>`;
+    sonido(pts >= 60 ? 'enLinea' : 'error');
+    const antes = (eq().logros && eq().logros.trabalenguas) || 0;
+    if (pts > antes) { estado.cambiar({ logros: { trabalenguas: pts } }); md.el.querySelector('#tb-mejor').textContent = `${pts}%`; }
+    decir(`${pts} por ciento. ${comentario}`);
+  });
+  setTimeout(() => decir(frase), 400);
 }
 
 // --- ficha: el JARVIS por dentro ---
