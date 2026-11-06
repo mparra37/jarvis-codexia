@@ -4,10 +4,10 @@
  *   'https://jarvis-codexia.tu-cuenta.workers.dev'
  * Si se deja vacía, JARVIS funciona igual con su cerebro básico (respuestas pre-escritas). Cada tablet
  * guarda su propio JARVIS; el servidor solo se usa para el Cerebro IA.
- * En localhost se usa el servidor de prueba (dev/servidor.mjs) automáticamente.
+ * En localhost se usa el servidor de prueba (dev/servidor.mjs) automáticamente (?api=… para probar otro).
  */
 export const CONFIG = {
-  API_URL: '',
+  API_URL: 'https://jarvis-codexia.repaso-tc1037-worker.workers.dev',
   // Cerebro IA (tarjeta H4): 'auto' = usa la IA si hay API_URL y si falla contesta el cerebro básico;
   // 'basico' = nunca llama a la IA (todo con respuestas pre-escritas).
   IA: 'auto',
@@ -32,6 +32,7 @@ export function urlApi() {
   const local = ['localhost', '127.0.0.1'].includes(location.hostname);
   const forzar = new URLSearchParams(location.search).get('api');
   if (forzar) return forzar.replace(/\/$/, '');
-  if (CONFIG.API_URL) return CONFIG.API_URL.replace(/\/$/, '');
-  return local ? location.origin : '';
+  // en la computadora (localhost) se usa el servidor de prueba, no el Worker de verdad
+  if (local) return location.origin;
+  return CONFIG.API_URL ? CONFIG.API_URL.replace(/\/$/, '') : '';
 }
