@@ -161,7 +161,7 @@ function video(s, nombre, x, y, w) {
   s = pres.addSlide({ masterName: 'CONTENIDO', sectionTitle: 'Inicio' });
   s.addText('Así va a funcionar', { placeholder: 'title' });
   const fases = [
-    ['1', 'Armar', '15 min', 'Sigan las misiones de la tablet: nombre, voz, forma y personalidad.', CIAN],
+    ['1', 'Armar', '15 min', 'Sigan los 4 pasos de la tablet: nombre, voz, forma y personalidad.', CIAN],
     ['2', 'Encender', '5 min', 'Todos al mismo tiempo. Su JARVIS se presenta.', VERDE],
     ['3', 'Descubrir', '15 min', 'Misiones extra: preguntas, foto, tarjetas secretas…', AMARILLO],
   ];
@@ -212,11 +212,11 @@ function video(s, nombre, x, y, w) {
   s = pres.addSlide({ masterName: 'CONTENIDO', sectionTitle: 'Inicio' });
   s.addText('Así se arma un JARVIS', { placeholder: 'title' });
   video(s, 'bienvenida', 0.5, 1.3, 5.6);
-  ['Creen su JARVIS con el nombre del equipo', 'Escaneen la tarjeta que pide la misión', 'Toquen Listo y vayan a la siguiente'].forEach((t, i) => {
+  ['Creen su JARVIS con el nombre del equipo', 'Escaneen la tarjeta que pide el paso (solo esa funciona)', 'Toquen SIGUIENTE → para el siguiente paso'].forEach((t, i) => {
     insignia(s, 6.45, 1.4 + i * 1.05, 0.5, String(i + 1), CIAN, `video-paso${i}`, { tam: 15 });
     cuerpo(s, t, { x: 7.1, y: 1.4 + i * 1.05, w: 2.4, h: 0.85, fontSize: 15 });
   });
-  s.addNotes('Den clic al video (30 s, sin sonido). Lo pueden repetir: en la tablet también está, en el botón ? de arriba.');
+  s.addNotes('Den clic al video (30 s, sin sonido). Lo pueden repetir: en la tablet también está, en el botón ? de arriba. Si un equipo escanea una tarjeta que no toca, JARVIS les dice cuál buscar; para cambiar algo ya hecho, tocan ese paso arriba o “← Anterior”.');
 
   // 7 · La directiva principal
   s = pres.addSlide({ masterName: 'CONTENIDO', sectionTitle: 'Inicio' });
@@ -244,7 +244,7 @@ function video(s, nombre, x, y, w) {
   s = pres.addSlide({ masterName: 'CONTENIDO', sectionTitle: 'Fase 1 · Armar' });
   s.addText('Fase 1 · Armen a su JARVIS', { placeholder: 'title' });
   s.addText('15:00', { x: 0.5, y: 1.35, w: 4.2, h: 1.5, fontSize: 92, bold: true, color: CIAN, fontFace: THEME.headFontFace, margin: 0, isTextBox: true });
-  s.addText('Sigan las misiones de la tablet', { x: 0.5, y: 2.9, w: 4.2, h: 0.4, fontSize: 18, color: TENUE, margin: 0, isTextBox: true });
+  s.addText('Sigan los pasos de la tablet', { x: 0.5, y: 2.9, w: 4.2, h: 0.4, fontSize: 18, color: TENUE, margin: 0, isTextBox: true });
   const misiones1 = [['1', 'Nombre', 'tarjeta IDENTIDAD', '38BDF8'], ['2', 'Voz', 'tarjetas VOZ', 'A78BFA'], ['3', 'Forma', 'tarjetas NÚCLEO', '34D399'], ['4', 'Personalidad', 'tarjetas PERSONALIDAD', 'F472B6']];
   misiones1.forEach(([n, t, d, color], i) => {
     insignia(s, 5.2, 1.3 + i * 0.68, 0.52, n, color, `m1-${n}`, { tam: 16 });

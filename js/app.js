@@ -232,7 +232,34 @@ function htmlModulos() {
     <div class="modulos" id="modulos"></div>`;
 }
 
-// ---------- taller: una misión a la vez ----------
+// ---------- taller: los pasos del armado, uno a la vez ----------
+// pasoVisto: el paso que se está viendo (se puede regresar a uno hecho). null = el primero que falta.
+let pasoVisto = null;
+const pasosArmado = () => misionesVisibles(conIA()).filter((m) => m.fase === 1);
+const enArmado = () => Boolean(eq()) && !eq().encendido;
+
+/** El paso que está en pantalla: el que eligieron (si ya se puede ver) o el primero que falta. */
+function pasoActual() {
+  const pasos = pasosArmado();
+  const falta = siguiente(eq(), 1, conIA()) || pasos[pasos.length - 1];
+  const i = pasos.findIndex((m) => m.id === pasoVisto);
+  return i >= 0 && i <= pasos.indexOf(falta) ? pasos[i] : falta;
+}
+function irAPaso(id) {
+  pasoVisto = id;
+  sonido('clic');
+  pintarTaller();
+}
+/** Pasa al paso que sigue del que está en pantalla (si este ya está hecho). */
+function siguientePaso() {
+  const pasos = pasosArmado();
+  const actual = pasoActual();
+  if (!cumplida(actual, eq())) return;
+  pasoVisto = pasos[Math.min(pasos.indexOf(actual) + 1, pasos.length - 1)].id;
+  pintarTaller();
+}
+const nombreTarjeta = (paso) => `${MODULO[paso.id].nombre.toUpperCase()}${paso.colorNombre ? ` (${paso.colorNombre})` : ''}`;
+
 function renderTaller() {
   app.innerHTML = `<section class="taller taller-mision">
     <div>${htmlEscenario()}</div>
@@ -244,39 +271,55 @@ function renderTaller() {
 function pintarTaller() {
   const cont = $('#mision');
   if (!cont || !eq()) return;
-  const fase1 = misionesVisibles(conIA()).filter((m) => m.fase === 1);
-  const sig = siguiente(eq(), 1, conIA()) || fase1[fase1.length - 1];
-  const listo = sig.id === 'encender';
-  const n = fase1.indexOf(sig) + 1;
-  // el paso anterior ya hecho, para regresar a cambiarlo (por ejemplo, la voz)
-  const previo = fase1.slice(0, n - 1).reverse().find((m) => MODULO[m.id] && instalado(m.id)) || null;
+  const pasos = pasosArmado();
+  const falta = siguiente(eq(), 1, conIA()) || pasos[pasos.length - 1];
+  const paso = pasoActual();
+  const i = pasos.indexOf(paso);
+  const hecho = paso.id !== 'encender' && cumplida(paso, eq());
+  const siguienteP = pasos[i + 1];
+  const resumen = { identidad: () => eq().jarvis.nombre, voz: () => VOCES[eq().voz.id].nombre, nucleo: () => NUCLEOS[eq().nucleo.id].nombre, personalidad: () => PERSONALIDADES[eq().personalidad.id].nombre };
+  const chip = (m, k) => {
+    const listo = m.id !== 'encender' && cumplida(m, eq());
+    const abierto = k <= pasos.indexOf(falta);
+    return `<button class="paso-chip ${listo ? 'hecho' : ''} ${m === paso ? 'actual' : ''}" style="--c:${m.color}" data-paso="${m.id}" ${abierto ? '' : 'disabled'} aria-label="Paso ${k + 1}: ${esc(m.etiqueta)}">
+      <span class="bolita">${listo ? '✓' : m.id === 'encender' ? '⏻' : k + 1}</span><small>${esc(m.etiqueta)}</small></button>`;
+  };
+  let cuerpo;
+  if (paso.id === 'encender') {
+    cuerpo = `<span class="mision-num">¡TODO LISTO!</span>
+      <h2>${esc(paso.titulo)}</h2>
+      <p>${esc(paso.como)}</p>
+      <button class="btn btn-primario btn-grande boton-iniciar" data-accion="encender">⏻ INICIAR ${esc(eq().jarvis.nombre)}</button>
+      <p class="tenue" style="font-size:15px">¿Quieren cambiar algo antes? Toquen un paso de arriba o “← Anterior”.</p>`;
+  } else if (hecho) {
+    cuerpo = `<span class="mision-num">PASO ${i + 1} DE 4 · ¡LISTO!</span>
+      <h2>${esc(paso.titulo)}</h2>
+      <div class="paso-hecho"><span>✓ ${esc(MODULO[paso.id].nombre)}: <b>${esc(resumen[paso.id]())}</b></span><button class="btn btn-chico" data-accion="ajustar">Ajustar</button></div>
+      <button class="btn btn-primario btn-grande boton-siguiente" data-accion="siguiente">Siguiente →<small>${esc(siguienteP.id === 'encender' ? '¡Encenderlo!' : `Paso ${i + 2}: ${siguienteP.titulo}`)}</small></button>
+      <button class="btn btn-chico" data-accion="escanear" style="justify-self:start">${icono('qr')} Escanear otra tarjeta de ${esc(MODULO[paso.id].nombre.toUpperCase())}</button>`;
+  } else {
+    cuerpo = `<span class="mision-num">PASO ${i + 1} DE 4</span>
+      <h2>${esc(paso.titulo)}</h2>
+      <p>${esc(paso.como)}</p>
+      <div class="tarjeta-muestra">${icono(paso.icono)}<span>${esc(MODULO[paso.id].nombre.toUpperCase())}</span>${icono('qr')}</div>
+      <button class="btn btn-primario btn-grande" style="width:100%" data-accion="escanear">${icono('qr')} Escanear tarjeta</button>`;
+  }
   cont.innerHTML = `
-    <div class="mision-pasos">${fase1.map((m, i) => `<button class="paso-chip ${cumplida(m, eq()) ? 'hecho' : ''} ${m === sig ? 'actual' : ''}" style="--c:${m.color}" data-mod="${m.id}" aria-label="${esc(m.titulo)}" title="${cumplida(m, eq()) && MODULO[m.id] ? 'Tocar para cambiarlo' : esc(m.titulo)}">${cumplida(m, eq()) ? '✓' : (m.id === 'encender' ? '⏻' : i + 1)}</button>`).join('<span class="paso-linea"></span>')}</div>
-    <div class="mision-actual" style="--c:${sig.color}">
-      <span class="mision-num">${listo ? '¡TODO LISTO!' : `MISIÓN ${n} DE 4`}</span>
-      <h2>${esc(sig.titulo)}</h2>
-      <p>${esc(sig.como)}</p>
-      ${listo
-    ? `<button class="btn btn-primario btn-grande boton-iniciar" data-accion="encender">⏻ INICIAR ${esc(eq().jarvis.nombre)}</button>`
-    : `<div class="tarjeta-muestra">${icono(sig.icono)}<span>${esc(MODULO[sig.id].nombre.toUpperCase())}</span>${icono('qr')}</div>
-       <button class="btn btn-primario btn-grande" style="width:100%" data-accion="escanear">${icono('qr')} Escanear tarjeta</button>`}
-    </div>
+    <div class="mision-pasos">${pasos.map(chip).join('<span class="paso-linea"></span>')}</div>
+    <div class="mision-actual" style="--c:${paso.color}">${cuerpo}</div>
     <div class="fila-botones mision-extra">
-      ${previo ? `<button class="btn-texto" data-accion="regresar">← Regresar: ${esc(MODULO[previo.id].nombre)}</button>` : ''}
+      ${i > 0 ? '<button class="btn-texto" data-accion="anterior">← Anterior</button>' : ''}
       <button class="btn-texto" data-accion="guia">📺 Ver cómo</button>
-      ${listo ? '<button class="btn-texto" data-accion="escanear">Cambiar algo (escanear)</button>' : '<button class="btn-texto" data-accion="codigo">¿Sin cámara? Escribir código</button>'}
-      <button class="btn-texto" data-accion="modulos">Ver módulos (${MODULOS.filter((m) => instalado(m.id)).length}/8)</button>
+      ${paso.id !== 'encender' ? '<button class="btn-texto" data-accion="codigo">¿Sin cámara? Escribir código</button>' : ''}
     </div>`;
   cont.querySelectorAll('[data-accion="escanear"]').forEach((b) => b.addEventListener('click', abrirEscanerTarjetas));
   cont.querySelector('[data-accion="encender"]')?.addEventListener('click', encender);
   cont.querySelector('[data-accion="codigo"]')?.addEventListener('click', abrirCodigoTarjeta);
-  cont.querySelector('[data-accion="guia"]').addEventListener('click', () => guia(sig.guia || 'escanear'));
-  cont.querySelector('[data-accion="modulos"]').addEventListener('click', verModulos);
-  cont.querySelector('[data-accion="regresar"]')?.addEventListener('click', () => abrirModulo(previo.id));
-  cont.querySelectorAll('[data-mod]').forEach((b) => b.addEventListener('click', () => {
-    const id = b.dataset.mod;
-    if (MODULO[id] && instalado(id)) abrirModulo(id);
-  }));
+  cont.querySelector('[data-accion="ajustar"]')?.addEventListener('click', () => abrirModulo(paso.id));
+  cont.querySelector('[data-accion="siguiente"]')?.addEventListener('click', () => { sonido('clic'); siguientePaso(); });
+  cont.querySelector('[data-accion="anterior"]')?.addEventListener('click', () => irAPaso(pasos[i - 1].id));
+  cont.querySelector('[data-accion="guia"]').addEventListener('click', () => guia(paso.guia || 'escanear'));
+  cont.querySelectorAll('[data-paso]').forEach((b) => b.addEventListener('click', () => irAPaso(b.dataset.paso)));
 }
 
 function verModulos() {
@@ -391,7 +434,7 @@ function escanear(alLeer, instrucciones = 'Apunten la cámara al QR de la tarjet
     if (alLeer(texto)) m.cerrar();
   }).then(() => {
     const est = m.el.querySelector('#estado-escaner');
-    if (est) est.textContent = 'Buscando un QR…';
+    if (est && est.textContent === 'Abriendo cámara…') est.textContent = 'Buscando un QR…';
   }).catch(() => {
     const est = m.el.querySelector('#estado-escaner');
     if (est) est.innerHTML = 'No se pudo abrir la cámara. Den permiso de cámara al navegador o <b>escriban el código</b> que viene en la esquina de la tarjeta.';
@@ -399,12 +442,14 @@ function escanear(alLeer, instrucciones = 'Apunten la cámara al QR de la tarjet
 }
 
 function abrirEscanerTarjetas() {
-  escanear((texto) => {
-    const r = leerQR(texto);
-    if (r.tipo === 'tarjeta') { usarTarjeta(r.codigo); return true; }
+  const paso = enArmado() ? pasoActual() : null;
+  const texto = paso && paso.id !== 'encender' ? `Busquen la tarjeta ${nombreTarjeta(paso)} y apunten la cámara a su QR.` : undefined;
+  escanear((leido) => {
+    const r = leerQR(leido);
+    if (r.tipo === 'tarjeta') return usarTarjeta(r.codigo);
     aviso('Ese QR no es una tarjeta de JARVIS.', { mal: true });
     return false;
-  });
+  }, texto);
 }
 
 function abrirCodigoTarjeta() {
@@ -424,11 +469,38 @@ function abrirCodigoTarjeta() {
 }
 
 // ---------- tarjetas ----------
+// mientras arman a JARVIS, cada paso acepta solo su tarjeta
+let ultimoRechazo = { codigo: '', t: 0 };
+function tarjetaEquivocada(codigo, t) {
+  const paso = pasoActual();
+  const deQue = t.tipo === 'modulo' ? `Esa tarjeta es de ${MODULO[t.modulo].nombre.toUpperCase()}` : 'Esa tarjeta es para después';
+  const texto = paso.id === 'encender'
+    ? `${deQue}. Ya armaron todo: toquen INICIAR. Para cambiar algo, regresen a ese paso.`
+    : `${deQue}. Ahora estamos con ${MODULO[paso.id].nombre}: busquen la tarjeta ${nombreTarjeta(paso)}.`;
+  aviso(texto, { mal: true, ms: 4000 });
+  const est = document.querySelector('#estado-escaner');
+  if (est) est.innerHTML = `<b style="color:var(--rojo)">${esc(texto)}</b>`;
+  // la cámara lee la misma tarjeta varias veces: hablar solo una vez
+  const ahora = Date.now();
+  if (ultimoRechazo.codigo !== codigo || ahora - ultimoRechazo.t > 6000) {
+    sonido('error');
+    if (navigator.vibrate) navigator.vibrate([80, 60, 80]);
+    decir(paso.id === 'encender' ? 'Ya armaron todo. Toquen iniciar.' : `Ahora estamos con ${MODULO[paso.id].nombre}.`);
+  }
+  ultimoRechazo = { codigo, t: ahora };
+}
+
+/** Instala o activa una tarjeta. Devuelve true si la tomó (false si no era la del paso). */
 function usarTarjeta(codigo) {
   const t = TARJETAS[codigo];
-  if (!t || !eq()) return;
-  if (t.tipo === 'accion') { estado.cambiar({ logros: { acciones: { [codigo]: true } } }); accion(t.accion); return; }
-  if (t.tipo === 'especial') { ataqueUltron(); return; }
+  if (!t || !eq()) return false;
+  if (enArmado()) {
+    const paso = pasoActual();
+    if (t.tipo !== 'modulo' || t.modulo !== paso.id) { tarjetaEquivocada(codigo, t); return false; }
+    pasoVisto = paso.id; // quedarse en este paso hasta que toquen Siguiente
+  }
+  if (t.tipo === 'accion') { estado.cambiar({ logros: { acciones: { [codigo]: true } } }); accion(t.accion); return true; }
+  if (t.tipo === 'especial') { ataqueUltron(); return true; }
   const m = t.modulo;
   const yaEstaba = instalado(m);
   const parche = { instalados: { [m]: true } };
@@ -445,7 +517,7 @@ function usarTarjeta(codigo) {
   const igual = yaEstaba && ((m === 'voz' && eq().voz.id === t.valor) || (m === 'nucleo' && eq().nucleo.id === t.valor)
     || (m === 'ambiente' && eq().ambiente.id === t.valor) || (m === 'personalidad' && eq().personalidad.id === t.valor)
     || ['identidad', 'memoria', 'escudo'].includes(m));
-  if (igual && m !== 'habilidades') { abrirModulo(m); return; }
+  if (igual && m !== 'habilidades') { abrirModulo(m); return true; }
   estado.cambiar(parche);
   sonido('instalar');
   if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
@@ -453,8 +525,10 @@ function usarTarjeta(codigo) {
   else if (m === 'personalidad') decir(frase('saludo'));
   else if (m === 'habilidades' && !nuevoAqui) aviso('Esa habilidad ya estaba instalada.');
   else decir(frase('listo'));
-  if (nuevoAqui) abrirModulo(m, { nuevo: true, habilidad: m === 'habilidades' ? HABILIDADES[t.valor] : null });
+  // en el armado siempre se abre la hoja (para ajustar y tocar Siguiente)
+  if (nuevoAqui || enArmado()) abrirModulo(m, { nuevo: nuevoAqui, habilidad: m === 'habilidades' ? HABILIDADES[t.valor] : null });
   else aviso(`${MODULO[m].nombre}: ${t.nombre}`);
+  return true;
 }
 
 async function accion(tipo) {
@@ -531,6 +605,8 @@ function guardarConFiltro(parche, m) {
   estado.cambiar(parche);
   sonido('instalar');
   if (m) m.cerrar();
+  // en el armado, al guardar se va al primer paso que falta (o a Encender si ya está todo)
+  if (enArmado()) { pasoVisto = null; pintarTaller(); }
   return true;
 }
 
@@ -576,14 +652,14 @@ function editorIdentidad(m, nuevo) {
 
 function editorVoz(m, nuevo) {
   const e = eq();
-  let elegida = e.voz.id;
+  const base = VOCES[e.voz.id];
   const md = modal(`${cabezaModulo(m, nuevo)}
-    <p style="margin:0 0 8px"><b>Toquen una voz para escucharla.</b> <span class="tenue">Prueben varias y quédense con su favorita.</span></p>
-    <div class="voces" id="v-lista">${Object.entries(VOCES).map(([k, v]) => `<button type="button" class="voz-op" data-voz="${k}">
-      <b>${icono('altavoz')} ${esc(v.nombre)}</b><span>${esc(v.desc)}</span></button>`).join('')}</div>
+    <div class="voz-actual">${icono('altavoz')}<div><b>${esc(base.nombre)}</b><span>${esc(base.desc)}</span></div></div>
+    <p class="tenue" style="margin:8px 0 0">¿Quieren comparar? Escaneen otra tarjeta de <b style="color:var(--c)">VOZ</b> y escuchen la diferencia.</p>
+    <button class="btn btn-chico" data-otra style="margin-top:8px">${icono('qr')} Escanear otra tarjeta de voz</button>
     <div class="afinar">
-      <label class="campo"><span><b>Tono</b> <span class="tenue">grave ↔ agudo</span> · <b id="v-tono-n" class="mono"></b></span><input type="range" id="v-tono" min="0" max="2" step="0.05"></label>
-      <label class="campo"><span><b>Velocidad</b> <span class="tenue">lenta ↔ rápida</span> · <b id="v-vel-n" class="mono"></b></span><input type="range" id="v-vel" min="0.5" max="1.8" step="0.05"></label>
+      <label class="campo"><span><b>Tono</b> <span class="tenue">grave ↔ agudo</span> · <b id="v-tono-n" class="mono"></b></span><input type="range" id="v-tono" min="0" max="2" step="0.05" value="${e.voz.tono ?? base.tono}"></label>
+      <label class="campo"><span><b>Velocidad</b> <span class="tenue">lenta ↔ rápida</span> · <b id="v-vel-n" class="mono"></b></span><input type="range" id="v-vel" min="0.5" max="1.8" step="0.05" value="${e.voz.velocidad ?? base.velocidad}"></label>
     </div>
     <details class="mas"><summary>Más opciones: otra voz del aparato</summary>
       <label class="campo"><span>Voz del aparato</span><select id="v-voz"><option value="">Automática</option></select></label>
@@ -595,9 +671,8 @@ function editorVoz(m, nuevo) {
   const tono = md.el.querySelector('#v-tono');
   const vel = md.el.querySelector('#v-vel');
   const select = md.el.querySelector('#v-voz');
-  const ajustes = () => ({ tono: Number(tono.value), velocidad: Number(vel.value), voz: VOCES[elegida].voz, vozNombre: select.value || '' });
+  const ajustes = () => ({ tono: Number(tono.value), velocidad: Number(vel.value), voz: base.voz, vozNombre: select.value || '' });
   const pintar = () => {
-    md.el.querySelectorAll('.voz-op').forEach((b) => b.classList.toggle('activo', b.dataset.voz === elegida));
     md.el.querySelector('#v-tono-n').textContent = Number(tono.value).toFixed(2);
     md.el.querySelector('#v-vel-n').textContent = `${Number(vel.value).toFixed(2)}×`;
     md.el.querySelector('#v-codigo-t').textContent = Number(tono.value).toFixed(2);
@@ -605,19 +680,11 @@ function editorVoz(m, nuevo) {
     const v = vozElegida(ajustes());
     md.el.querySelector('#v-usando').textContent = v ? `${v.name} (${v.lang})` : 'la voz del aparato';
   };
-  const ponerPreset = (id, guardados) => {
-    elegida = id;
-    const base = VOCES[id];
-    tono.value = guardados && guardados.tono != null ? guardados.tono : base.tono;
-    vel.value = guardados && guardados.velocidad != null ? guardados.velocidad : base.velocidad;
-    pintar();
-  };
   const probar = () => {
-    const frase = `¿Qué tal sueno así? Soy ${eq().jarvis.nombre}, con la voz ${VOCES[elegida].nombre}.`;
+    const frase = `¿Qué tal sueno así? Soy ${eq().jarvis.nombre}.`;
     subtitulo(frase);
     hablar(frase, ajustes());
   };
-  ponerPreset(elegida, e.voz);
   // la lista de voces del aparato puede tardar en cargar: se llena cuando esté
   listasVoces().then(() => {
     vocesEspanol().forEach((v) => {
@@ -629,22 +696,18 @@ function editorVoz(m, nuevo) {
     });
     pintar();
   });
-  md.el.querySelector('#v-lista').addEventListener('click', (ev) => {
-    const b = ev.target.closest('[data-voz]');
-    if (!b) return;
-    ponerPreset(b.dataset.voz);
-    probar();
-  });
   [tono, vel].forEach((x) => {
     x.addEventListener('input', pintar);
     x.addEventListener('change', probar); // al soltar el control, se escucha cómo quedó
   });
   select.addEventListener('change', () => { pintar(); probar(); });
+  pintar();
   md.el.querySelector('[data-probar]').addEventListener('click', probar);
-  md.el.querySelector('[data-reset]').addEventListener('click', () => { select.value = ''; ponerPreset(elegida); probar(); });
+  md.el.querySelector('[data-otra]').addEventListener('click', () => { md.cerrar(); abrirEscanerTarjetas(); });
+  md.el.querySelector('[data-reset]').addEventListener('click', () => { tono.value = base.tono; vel.value = base.velocidad; select.value = ''; pintar(); probar(); });
   md.el.querySelector('[data-listo]').addEventListener('click', () => {
     const a = ajustes();
-    if (guardarConFiltro({ voz: { id: elegida, tono: a.tono, velocidad: a.velocidad, vozNombre: a.vozNombre } }, md)) decir('¡Me encanta mi voz!');
+    if (guardarConFiltro({ voz: { tono: a.tono, velocidad: a.velocidad, vozNombre: a.vozNombre } }, md)) decir('¡Me encanta mi voz!');
   });
 }
 
@@ -1425,6 +1488,8 @@ function aplicarTarjetaPendiente() {
   const codigo = tarjetaPendiente;
   tarjetaPendiente = '';
   const t = TARJETAS[codigo];
+  // en el armado, si no es la tarjeta del paso, se avisa de una vez (sin botón de "Instalar")
+  if (enArmado() && (t.tipo !== 'modulo' || t.modulo !== pasoActual().id)) { tarjetaEquivocada(codigo, t); return; }
   // el navegador solo deja hablar después de un toque: pedimos confirmación
   const m = modal(`<div class="cabeza-modulo" style="--c:${colorTarjeta(codigo)}">${icono(t.tipo === 'modulo' ? t.modulo : t.tipo === 'accion' ? 'accion' : 'ultron')}<div><h2>${esc(t.nombre)}</h2><span class="tenue">Tarjeta ${codigo}</span></div></div>
     <p>${esc(t.desc)}</p><button class="btn btn-primario btn-grande" style="width:100%">${t.tipo === 'accion' ? 'Activar' : 'Instalar'}</button>`, { color: colorTarjeta(codigo) });

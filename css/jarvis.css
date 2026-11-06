@@ -237,17 +237,24 @@ pre.codigo {
 .taller-mision .escenario canvas { width: min(230px, 46vw); height: min(230px, 46vw); }
 .taller-mision .subtitulo:empty { display: none; }
 .mision-panel { display: grid; gap: 14px; }
-.mision-pasos { display: flex; align-items: center; justify-content: center; }
-.paso-chip { width: 42px; height: 42px; flex: none; border-radius: 50%; border: 2px solid var(--c); background: rgba(0, 0, 0, 0.3); color: var(--c); font-family: var(--titulo); font-weight: 800; font-size: 16px; }
-.paso-chip.hecho { background: var(--c); color: #02121c; }
-.paso-chip.actual { animation: pulso 1.6s infinite; }
-.paso-linea { flex: 1; max-width: 44px; height: 2px; background: var(--borde); }
+.mision-pasos { display: flex; align-items: flex-start; justify-content: center; }
+.paso-chip { display: grid; justify-items: center; gap: 4px; flex: none; width: 74px; padding: 0; border: 0; background: none; color: var(--c); cursor: pointer; }
+.paso-chip .bolita { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--c); background: rgba(0, 0, 0, 0.3); font-family: var(--titulo); font-weight: 800; font-size: 16px; }
+.paso-chip small { font-size: 12px; font-weight: 700; letter-spacing: 0.02em; color: var(--texto, #e6f1ff); opacity: 0.8; }
+.paso-chip.hecho .bolita { background: var(--c); color: #02121c; }
+.paso-chip.actual .bolita { box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.18); animation: pulso 1.6s infinite; }
+.paso-chip.actual small { opacity: 1; color: var(--c); }
+.paso-chip:disabled { opacity: 0.35; cursor: default; }
+.paso-linea { flex: 1; max-width: 30px; height: 2px; margin-top: 22px; background: var(--borde); }
 .mision-actual { border: 2px solid var(--c); border-radius: 16px; padding: 18px; background: color-mix(in srgb, var(--c) 9%, rgba(0, 0, 0, 0.45)); display: grid; gap: 12px; }
 .mision-num { font-family: var(--titulo); font-size: 12px; letter-spacing: 0.2em; color: var(--c); }
 .mision-actual h2 { font-size: clamp(24px, 4.5vw, 34px); margin: 0; }
 .mision-actual p { margin: 0; font-size: 19px; }
 .tarjeta-muestra { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-radius: 12px; background: var(--c); color: #02121c; font-family: var(--titulo); font-weight: 800; letter-spacing: 0.12em; max-width: 320px; }
 .tarjeta-muestra .icono { width: 28px; height: 28px; }
+.paso-hecho { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: 12px; background: rgba(0, 0, 0, 0.35); font-size: 19px; }
+.boton-siguiente { width: 100%; min-height: 76px; font-size: 22px; display: grid; gap: 2px; animation: pulso 1.6s infinite; }
+.boton-siguiente small { font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; opacity: 0.85; }
 .boton-iniciar { width: 100%; min-height: 76px; font-size: 20px; animation: pulso 1.6s infinite; }
 @keyframes pulso { 50% { box-shadow: 0 0 0 10px color-mix(in srgb, var(--c, var(--acento)) 22%, transparent); } }
 .mision-extra { justify-content: center; }
@@ -255,16 +262,11 @@ pre.codigo {
 .sabias-corto { margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); font-size: 17px; }
 details.mas { margin-top: 12px; border-top: 1px solid var(--borde); padding-top: 4px; }
 details.mas summary { cursor: pointer; color: var(--acento); font-weight: 700; min-height: 42px; display: flex; align-items: center; }
-/* hoja de voz: las voces para probar y los controles a la vista */
-.voces { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
-.voz-op {
-  display: grid; gap: 2px; text-align: left; padding: 10px 12px; min-height: 64px; border-radius: 12px;
-  border: 1px solid var(--borde); background: var(--panel); color: inherit; font: inherit; cursor: pointer;
-}
-.voz-op b { display: flex; gap: 6px; align-items: center; font-size: 17px; }
-.voz-op b .icono { width: 18px; height: 18px; flex: none; }
-.voz-op span { font-size: 14px; opacity: 0.75; }
-.voz-op.activo { border-color: var(--c); background: rgba(167, 139, 250, 0.2); box-shadow: 0 0 0 2px var(--c) inset; }
+/* hoja de voz: la voz de la tarjeta y los controles a la vista */
+.voz-actual { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 12px; border: 2px solid var(--c); background: rgba(167, 139, 250, 0.14); }
+.voz-actual .icono { width: 30px; height: 30px; color: var(--c); flex: none; }
+.voz-actual b { display: block; font-size: 21px; }
+.voz-actual span { font-size: 15px; opacity: 0.8; }
 .afinar { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; margin-top: 12px; }
 .afinar input[type=range] { width: 100%; min-height: 36px; accent-color: var(--c); }
 @media (max-width: 520px) { .afinar { grid-template-columns: 1fr; } }
@@ -298,7 +300,10 @@ details.mas summary { cursor: pointer; color: var(--acento); font-weight: 700; m
 @media (max-width: 600px) {
   .mision-item { grid-template-columns: auto 1fr; }
   .mision-item .btn { grid-column: 2; justify-self: start; }
-  .paso-chip { width: 36px; height: 36px; font-size: 14px; }
+  .paso-chip { width: 58px; }
+  .paso-chip .bolita { width: 36px; height: 36px; font-size: 14px; }
+  .paso-chip small { font-size: 10.5px; }
+  .paso-linea { margin-top: 18px; }
 }
 
 /* ---------- estaciones ---------- */

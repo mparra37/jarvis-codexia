@@ -11,19 +11,19 @@ const logro = (e, k) => (e.logros && e.logros[k]) || 0;
 
 export const MISIONES = [
   // ---------- fase 1: armar ----------
-  { id: 'identidad', fase: 1, icono: 'identidad', color: '#38bdf8', guia: 'escanear',
+  { id: 'identidad', fase: 1, etiqueta: 'Nombre', colorNombre: 'azul', icono: 'identidad', color: '#38bdf8', guia: 'escanear',
     titulo: 'Denle un nombre', como: 'Busquen la tarjeta IDENTIDAD (azul) y escanéenla.',
     hecho: (e) => inst(e, 'identidad') },
-  { id: 'voz', fase: 1, icono: 'voz', color: '#a78bfa', guia: 'escanear',
-    titulo: 'Denle una voz', como: 'Escaneen una tarjeta de VOZ (morada). ¡Prueben varias y quédense con su favorita!',
+  { id: 'voz', fase: 1, etiqueta: 'Voz', colorNombre: 'morada', icono: 'voz', color: '#a78bfa', guia: 'escanear',
+    titulo: 'Denle una voz', como: 'Escaneen una tarjeta de VOZ (morada). ¿Quieren comparar? Escaneen otra tarjeta de voz y escuchen la diferencia.',
     hecho: (e) => inst(e, 'voz') },
-  { id: 'nucleo', fase: 1, icono: 'nucleo', color: '#34d399', guia: 'escanear',
+  { id: 'nucleo', fase: 1, etiqueta: 'Forma', colorNombre: 'verde', icono: 'nucleo', color: '#34d399', guia: 'escanear',
     titulo: 'Elijan su forma', como: 'Escaneen una tarjeta de NÚCLEO VISUAL (verde) y escojan un color.',
     hecho: (e) => inst(e, 'nucleo') },
-  { id: 'personalidad', fase: 1, icono: 'personalidad', color: '#f472b6', guia: 'directiva',
+  { id: 'personalidad', fase: 1, etiqueta: 'Personalidad', colorNombre: 'rosa', icono: 'personalidad', color: '#f472b6', guia: 'directiva',
     titulo: 'Denle personalidad', como: 'Escaneen una tarjeta de PERSONALIDAD (rosa) y armen su directiva principal.',
     hecho: (e) => inst(e, 'personalidad') },
-  { id: 'encender', fase: 1, icono: 'nucleo', color: '#3dff9a', guia: 'encender',
+  { id: 'encender', fase: 1, etiqueta: 'Encender', colorNombre: '', icono: 'nucleo', color: '#3dff9a', guia: 'encender',
     titulo: '¡Enciéndanlo!', como: 'Toquen INICIAR: su JARVIS arranca y se presenta.',
     hecho: (e) => Boolean(e.encendido) },
 

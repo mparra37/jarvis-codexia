@@ -1,5 +1,5 @@
 /* JARVIS · service worker: primero la red, y si no hay, lo guardado (para que abra sin internet) */
-const CACHE = 'jarvis-v9';
+const CACHE = 'jarvis-v10';
 const BASE = ['./', 'index.html', 'taller-vr.html', 'css/jarvis.css', 'vendor/qrcode.js', 'vendor/jsQR.js', 'img/icono.svg', 'manifest.webmanifest',
   'js/app.js', 'js/vr.js', 'js/datos.js', 'js/personalidades.js', 'js/filtro.js', 'js/config.js', 'js/api.js', 'js/estado.js', 'js/cerebro.js', 'js/misiones.js', 'js/guias.js', 'js/ui.js',
   'js/nucleo.js', 'js/ambiente.js', 'js/voz.js', 'js/sonidos.js', 'js/qr.js', 'js/camara.js', 'js/codigo_vr.js', 'js/taller_vr_datos.js', 'js/estaciones_datos.js', 'guia.html'];

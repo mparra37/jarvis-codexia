@@ -59,8 +59,8 @@ const VIDEOS = {
       await t.tocar('[data-accion="escanear"]', 'Toquen ESCANEAR TARJETA');
       await t.texto('Apunten la cámara al QR de la tarjeta', 3500);
       await t.tocar('.chips[data-destino="f-jnombre"] .chip:nth-child(2)', 'Escojan un nombre');
-      await t.tocar('[data-listo]', 'Toquen LISTO');
-      await t.texto('¡Siguiente misión! Así hasta encenderlo', 3000);
+      await t.tocar('[data-listo]', 'Toquen SIGUIENTE');
+      await t.texto('¡Siguiente paso! Así hasta encenderlo', 3000);
     },
   },
   escanear: {
@@ -71,7 +71,7 @@ const VIDEOS = {
       await t.tocar('[data-accion="escanear"]', '1 · Toquen ESCANEAR TARJETA');
       await t.texto('2 · Apunten la cámara al QR, a un palmo', 3500);
       await t.texto('JARVIS cambia al instante', 2200);
-      await t.tocar('[data-listo]', '3 · Toquen LISTO');
+      await t.tocar('[data-listo]', '3 · Toquen SIGUIENTE');
       await t.texto('¡Y sigan con la siguiente misión!', 2600);
     },
   },
@@ -87,7 +87,7 @@ const VIDEOS = {
       await t.tocar('.chips[data-destino="d-nunca"] .chip:nth-child(1)', 'Nunca…');
       await t.tocar('details.mas summary', 'Así queda su prompt de sistema');
       await espera(1800);
-      await t.tocar('[data-listo]', 'Toquen LISTO');
+      await t.tocar('[data-listo]', 'Toquen SIGUIENTE');
       await t.texto('¡Ya está listo para encender!', 2400);
     },
   },
@@ -95,7 +95,7 @@ const VIDEOS = {
     tarjeta: 'ID',
     equipo: armado(),
     async guion(t) {
-      await t.texto('Con las 4 misiones, aparece INICIAR', 2400);
+      await t.texto('Con los 4 pasos listos, aparece INICIAR', 2400);
       await t.tocar('[data-accion="encender"]', 'Toquen INICIAR y suban el volumen');
       await t.texto('JARVIS arranca…', 4200);
       await t.texto('…y se presenta frente a todos', 4000);
