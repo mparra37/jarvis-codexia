@@ -77,7 +77,7 @@ Todo el Worker está en un solo archivo: [`cloudflare/worker.js`](cloudflare/wor
 4. En Misiones → **Retrato de Ultrón**: con la súper inteligencia, la IA mira la foto del dibujo y lo describe de verdad.
 5. En el panel del staff revisen “Uso de hoy” y prueben **Pausa**: las tablets siguen con el cerebro básico.
 
-**¿Hace falta la base de datos?** No. Sin ella todo funciona, con dos diferencias: la batería por tablet, la pausa y los ajustes del staff viven en la memoria del Worker (Cloudflare la reinicia de vez en cuando y entonces vuelven a los valores de inicio), y los resultados del taller VR se quedan en la tablet de la estación en vez de juntarse en el panel del staff. Para un día de taller está bien; con la base de datos queda más firme.
+**¿Hace falta la base de datos?** Para chatear, no. Pero sin ella **los controles del staff no son confiables**: Cloudflare corre varias copias del Worker y cada una guarda su propia pausa, batería por tablet y cuenta de uso (lo comprobamos: una pausa solo la vio 1 de cada 5 llamadas). Conéctenla antes del evento (paso 5, dos minutos). Sin ella, el único freno de gasto seguro es el límite de la consola de Anthropic; los resultados del taller VR se quedan en la tablet de la estación.
 
 Ajustes opcionales: en **Variables and Secrets** agreguen variables de tipo **Text** con los nombres de la tabla de abajo (por ejemplo `MODELO` = `claude-haiku-5-5`). Si no ponen nada, se usan los valores de la tabla.
 
