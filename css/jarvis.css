@@ -231,6 +231,63 @@ pre.codigo {
 .logro { padding: 8px 12px; border-radius: 12px; border: 1px solid var(--borde); background: rgba(0, 0, 0, 0.4); font-weight: 600; }
 .logro.no { opacity: 0.35; }
 
+/* ---------- misiones (taller) ---------- */
+.btn-ayuda { width: 40px; height: 40px; flex: none; border-radius: 50%; border: 1px solid var(--borde); background: var(--panel); font-family: var(--titulo); font-weight: 800; font-size: 18px; }
+.taller-mision .escenario { padding: 4px; }
+.taller-mision .escenario canvas { width: min(230px, 46vw); height: min(230px, 46vw); }
+.taller-mision .subtitulo:empty { display: none; }
+.mision-panel { display: grid; gap: 14px; }
+.mision-pasos { display: flex; align-items: center; justify-content: center; }
+.paso-chip { width: 42px; height: 42px; flex: none; border-radius: 50%; border: 2px solid var(--c); background: rgba(0, 0, 0, 0.3); color: var(--c); font-family: var(--titulo); font-weight: 800; font-size: 16px; }
+.paso-chip.hecho { background: var(--c); color: #02121c; }
+.paso-chip.actual { animation: pulso 1.6s infinite; }
+.paso-linea { flex: 1; max-width: 44px; height: 2px; background: var(--borde); }
+.mision-actual { border: 2px solid var(--c); border-radius: 16px; padding: 18px; background: color-mix(in srgb, var(--c) 9%, rgba(0, 0, 0, 0.45)); display: grid; gap: 12px; }
+.mision-num { font-family: var(--titulo); font-size: 12px; letter-spacing: 0.2em; color: var(--c); }
+.mision-actual h2 { font-size: clamp(24px, 4.5vw, 34px); margin: 0; }
+.mision-actual p { margin: 0; font-size: 19px; }
+.tarjeta-muestra { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-radius: 12px; background: var(--c); color: #02121c; font-family: var(--titulo); font-weight: 800; letter-spacing: 0.12em; max-width: 320px; }
+.tarjeta-muestra .icono { width: 28px; height: 28px; }
+.boton-iniciar { width: 100%; min-height: 76px; font-size: 20px; animation: pulso 1.6s infinite; }
+@keyframes pulso { 50% { box-shadow: 0 0 0 10px color-mix(in srgb, var(--c, var(--acento)) 22%, transparent); } }
+.mision-extra { justify-content: center; }
+.mision-extra .btn-texto { min-height: 36px; font-size: 15px; }
+.sabias-corto { margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); font-size: 17px; }
+details.mas { margin-top: 12px; border-top: 1px solid var(--borde); padding-top: 4px; }
+details.mas summary { cursor: pointer; color: var(--acento); font-weight: 700; min-height: 42px; display: flex; align-items: center; }
+.fila-dir { display: grid; gap: 6px; margin-bottom: 14px; }
+.fila-dir .etq { font-weight: 700; font-size: 18px; }
+.fila-dir input { min-height: 42px; font-size: 16px; }
+.reglas { margin: 0; padding-left: 4px; list-style: none; display: grid; gap: 6px; }
+
+/* ---------- misiones (JARVIS encendido) ---------- */
+.cabeza-misiones { display: flex; justify-content: space-between; align-items: baseline; }
+.cabeza-misiones .mono { color: var(--acento); font-size: 20px; }
+.mision-item { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 12px; background: rgba(0, 0, 0, 0.45); border: 1px solid var(--borde); }
+.mision-item > div { display: grid; gap: 2px; }
+.mision-item .tenue { font-size: 15px; }
+.mision-item.destacada { border: 2px solid var(--c); background: color-mix(in srgb, var(--c) 10%, rgba(0, 0, 0, 0.5)); }
+.mision-icono { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--c); color: var(--c); font-weight: 800; }
+.mision-icono .icono { width: 22px; height: 22px; }
+.mision-item.hecha { padding: 8px 14px; opacity: 0.8; }
+.mision-item.bloqueada { opacity: 0.6; border-style: dashed; --c: var(--tenue); }
+.mision-item.hecha .mision-icono { background: var(--c); color: #02121c; width: 32px; height: 32px; }
+.mision-estado { font-family: var(--mono); color: var(--c); font-weight: 400; }
+.globo { font-style: normal; background: var(--rojo); color: #fff; border-radius: 99px; padding: 0 6px; font-size: 11px; }
+.taller-ayuda { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
+.estacion-op, .guia-item { text-align: left; cursor: pointer; font-size: 17px; color: var(--texto); }
+.estacion-op.activa { border-color: var(--acento); background: rgba(63, 208, 255, 0.1); }
+.guia-video { border-radius: 12px; overflow: hidden; background: #000; border: 1px solid var(--borde); }
+.guia-video video { display: block; width: 100%; max-height: 50dvh; object-fit: contain; background: #000; }
+.guia-pasos { font-size: 18px; padding-left: 24px; margin: 12px 0; }
+.guia-pasos li { margin: 6px 0; }
+.modal.modal-guia { width: min(780px, 100%); }
+@media (max-width: 600px) {
+  .mision-item { grid-template-columns: auto 1fr; }
+  .mision-item .btn { grid-column: 2; justify-self: start; }
+  .paso-chip { width: 36px; height: 36px; font-size: 14px; }
+}
+
 /* ---------- estaciones ---------- */
 .estaciones-fila { display: grid; gap: 4px; margin-bottom: 10px; }
 .ayuda-estacion { margin-bottom: 10px; border-color: color-mix(in srgb, var(--acento) 45%, transparent); }

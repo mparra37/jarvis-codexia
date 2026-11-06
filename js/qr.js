@@ -26,6 +26,9 @@ export async function abrirEscaner(video, alLeer) {
     }
   } catch (e) { detector = null; }
 
+  // ?demoraqr=2500: solo para grabar los videos de ayuda (que se alcance a ver la cámara)
+  const demora = Number(new URLSearchParams(location.search).get('demoraqr')) || 0;
+  const inicio = Date.now();
   const lienzo = document.createElement('canvas');
   const g = lienzo.getContext('2d', { willReadFrequently: true });
   let ultimo = '';
@@ -50,7 +53,7 @@ export async function abrirEscaner(video, alLeer) {
         }
       } catch (e) { /* cuadro malo, siguiente */ }
       const ahora = Date.now();
-      if (texto && (texto !== ultimo || ahora - ultimoT > 2500)) {
+      if (texto && ahora - inicio >= demora && (texto !== ultimo || ahora - ultimoT > 2500)) {
         ultimo = texto;
         ultimoT = ahora;
         alLeer(texto);

@@ -12,12 +12,14 @@ import {
 import { REGLAS_FIJAS, rellenar } from './personalidades.js';
 import { estado, dispositivo } from './estado.js';
 import { responder } from './cerebro.js';
+import { MISIONES, misionesVisibles, cumplida, siguiente } from './misiones.js';
+import { verGuia, menuGuias } from './guias.js';
 import { llamar, hayServidor } from './api.js';
 import { CONFIG } from './config.js';
 import { $, $$, esc, modal, confirmar, aviso, hora, qrSVG, mantenerPantalla } from './ui.js';
 import { Nucleo } from './nucleo.js';
 import { Ambiente } from './ambiente.js';
-import { hablar, callar, alHablar, desbloquearVoz, vocesEspanol, escuchar, detenerEscucha, puedeEscuchar } from './voz.js';
+import { hablar, callar, alHablar, desbloquearVoz, vocesEspanol, escuchar, detenerEscucha, puedeEscuchar, listasVoces, vozElegida } from './voz.js';
 import { sonido, fiesta, desbloquearAudio } from './sonidos.js';
 import { abrirEscaner, cerrarEscaner } from './qr.js';
 import { abrirCamara, cerrarCamara, capturar, guardarFoto, listarFotos, borrarFoto, camaraDeFrente } from './camara.js';
@@ -130,9 +132,12 @@ function pintarBarra() {
   if (mostrar) bat.innerHTML = `${icono('bateria')} ${restantesIA}`;
 }
 $('#chip-equipo').addEventListener('click', () => abrirEquipo());
+$('#btn-ayuda').addEventListener('click', () => menuGuias({ decir }));
+function guia(id) { callar(); verGuia(id, { decir }); }
 
 // ---------- vistas ----------
 function render(forzar = false) {
+  revisarMisiones();
   pintarBarra();
   const nueva = !eq() ? 'inicio' : eq().encendido ? 'jarvis' : 'taller';
   if (nueva !== vista || forzar) {
@@ -157,6 +162,7 @@ function actualizar() {
     if (detalle) detalle.textContent = detalleJarvis();
     pintarModulos();
   }
+  if (vista === 'taller') pintarTaller();
   if (vista === 'jarvis') {
     pintarPestanas();
     pintarRecordatorio();
@@ -164,6 +170,29 @@ function actualizar() {
     if (cont && !cont.contains(document.activeElement) && pestana !== 'camara' && pestana !== 'hablar') pintarPestana();
     if (pestana === 'hablar') pintarCerebro();
   }
+}
+
+// ---------- misiones ----------
+const conIA = () => CONFIG.IA !== 'basico' && hayServidor();
+let misionesHechas = null;
+
+/** Celebra cada misión que se acaba de cumplir. */
+function revisarMisiones() {
+  if (!eq()) { misionesHechas = null; return; }
+  const ahora = new Set(misionesVisibles(conIA()).filter((m) => cumplida(m, eq())).map((m) => m.id));
+  if (misionesHechas) {
+    const nuevas = [...ahora].filter((id) => !misionesHechas.has(id) && id !== 'encender');
+    nuevas.forEach((id, i) => {
+      const m = MISIONES.find((x) => x.id === id);
+      setTimeout(() => aviso(`⭐ Misión cumplida: ${m.titulo}`, { ms: 3200 }), 900 + i * 1200);
+    });
+    if (nuevas.length) setTimeout(() => sonido('enLinea'), 700);
+  }
+  misionesHechas = ahora;
+}
+
+function misionesPendientes() {
+  return misionesVisibles(conIA()).filter((m) => m.fase === 2 && !m.opcional && !cumplida(m, eq())).length;
 }
 
 function detalleJarvis() {
@@ -202,29 +231,53 @@ function htmlModulos() {
     <div class="modulos" id="modulos"></div>`;
 }
 
+// ---------- taller: una misión a la vez ----------
 function renderTaller() {
-  app.innerHTML = `<section class="taller">
-    <div>${htmlEscenario()}
-      <div class="fila-botones" style="justify-content:center;margin-top:10px">
-        <button class="btn btn-chico" data-accion="probar">${icono('altavoz')} Probar</button>
-      </div>
-    </div>
-    <div class="panel">
-      <h2>Módulos de su JARVIS</h2>
-      <p class="tenue" style="margin:0 0 10px">Escaneen las tarjetas de su sobre para instalar módulos. Toquen un módulo instalado para ajustarlo. ¡Pueden cambiar de opinión las veces que quieran!</p>
-      ${htmlModulos()}
-      <div class="acciones-taller">
-        <div class="flotante"><button class="btn btn-primario btn-grande" style="width:100%" data-accion="escanear">${icono('qr')} Escanear tarjeta</button></div>
-        <button class="btn-texto" data-accion="codigo">¿No funciona la cámara? Escribir el código de la tarjeta</button>
-        <button class="btn btn-grande" data-accion="encender" id="btn-encender">⏻ Iniciar JARVIS</button>
-        <p class="tenue centro" id="falta" style="margin:0"></p>
-      </div>
-    </div>
+  app.innerHTML = `<section class="taller taller-mision">
+    <div>${htmlEscenario()}</div>
+    <div class="panel mision-panel" id="mision"></div>
   </section>`;
-  app.querySelector('[data-accion="probar"]').addEventListener('click', () => decir(frase('saludo'), { sonar: true }));
-  app.querySelector('[data-accion="escanear"]').addEventListener('click', abrirEscanerTarjetas);
-  app.querySelector('[data-accion="codigo"]').addEventListener('click', abrirCodigoTarjeta);
-  app.querySelector('[data-accion="encender"]').addEventListener('click', encender);
+  pintarTaller();
+}
+
+function pintarTaller() {
+  const cont = $('#mision');
+  if (!cont || !eq()) return;
+  const fase1 = misionesVisibles(conIA()).filter((m) => m.fase === 1);
+  const sig = siguiente(eq(), 1, conIA()) || fase1[fase1.length - 1];
+  const listo = sig.id === 'encender';
+  const n = fase1.indexOf(sig) + 1;
+  cont.innerHTML = `
+    <div class="mision-pasos">${fase1.map((m, i) => `<button class="paso-chip ${cumplida(m, eq()) ? 'hecho' : ''} ${m === sig ? 'actual' : ''}" style="--c:${m.color}" data-mod="${m.id}" aria-label="${esc(m.titulo)}">${cumplida(m, eq()) ? '✓' : (m.id === 'encender' ? '⏻' : i + 1)}</button>`).join('<span class="paso-linea"></span>')}</div>
+    <div class="mision-actual" style="--c:${sig.color}">
+      <span class="mision-num">${listo ? '¡TODO LISTO!' : `MISIÓN ${n} DE 4`}</span>
+      <h2>${esc(sig.titulo)}</h2>
+      <p>${esc(sig.como)}</p>
+      ${listo
+    ? `<button class="btn btn-primario btn-grande boton-iniciar" data-accion="encender">⏻ INICIAR ${esc(eq().jarvis.nombre)}</button>`
+    : `<div class="tarjeta-muestra">${icono(sig.icono)}<span>${esc(MODULO[sig.id].nombre.toUpperCase())}</span>${icono('qr')}</div>
+       <button class="btn btn-primario btn-grande" style="width:100%" data-accion="escanear">${icono('qr')} Escanear tarjeta</button>`}
+    </div>
+    <div class="fila-botones mision-extra">
+      <button class="btn-texto" data-accion="guia">📺 Ver cómo</button>
+      ${listo ? '<button class="btn-texto" data-accion="escanear">Cambiar algo (escanear)</button>' : '<button class="btn-texto" data-accion="codigo">¿Sin cámara? Escribir código</button>'}
+      <button class="btn-texto" data-accion="modulos">Ver módulos (${MODULOS.filter((m) => instalado(m.id)).length}/8)</button>
+    </div>`;
+  cont.querySelectorAll('[data-accion="escanear"]').forEach((b) => b.addEventListener('click', abrirEscanerTarjetas));
+  cont.querySelector('[data-accion="encender"]')?.addEventListener('click', encender);
+  cont.querySelector('[data-accion="codigo"]')?.addEventListener('click', abrirCodigoTarjeta);
+  cont.querySelector('[data-accion="guia"]').addEventListener('click', () => guia(sig.guia || 'escanear'));
+  cont.querySelector('[data-accion="modulos"]').addEventListener('click', verModulos);
+  cont.querySelectorAll('[data-mod]').forEach((b) => b.addEventListener('click', () => {
+    const id = b.dataset.mod;
+    if (MODULO[id] && instalado(id)) abrirModulo(id);
+  }));
+}
+
+function verModulos() {
+  modal(`<h2>Módulos de ${esc(eq().jarvis.nombre)}</h2>
+    <p class="tenue" style="margin-top:0">Toquen uno instalado para ajustarlo. Para cambiar una pieza, escaneen otra tarjeta del mismo color.</p>
+    ${htmlModulos()}`);
   pintarModulos();
 }
 
@@ -242,7 +295,7 @@ function resumenModulo(id) {
       return n ? `${n} integrante${n === 1 ? '' : 's'}` : 'Toquen para llenarla';
     }
     case 'escudo': return e.escudo.regla ? `${REGLAS_FIJAS.length} reglas + 1 del equipo` : `${REGLAS_FIJAS.length} reglas activas`;
-    case 'habilidades': return `${Object.values(e.habilidades || {}).filter(Boolean).length} de 4`;
+    case 'habilidades': return `${Object.values(e.habilidades || {}).filter(Boolean).length} de ${conIA() ? 4 : 3}`;
     default: return '';
   }
 }
@@ -252,21 +305,13 @@ function pintarModulos() {
   if (!cont || !eq()) return;
   cont.innerHTML = MODULOS.map((m) => `<button class="tile ${instalado(m.id) ? 'instalado' : 'bloqueado'}" style="--c:${m.color}" data-modulo="${m.id}">
       ${icono(m.id)}<span class="n">${m.nombre}</span><span class="e">${esc(resumenModulo(m.id))}</span>
-      ${m.necesario ? '<span class="necesario">Necesario</span>' : ''}
     </button>`).join('');
   cont.querySelectorAll('.tile').forEach((b) => b.addEventListener('click', () => abrirModulo(b.dataset.modulo)));
   const n = MODULOS.filter((m) => instalado(m.id)).length;
-  $('#barra-modulos').style.width = `${(n / MODULOS.length) * 100}%`;
-  $('#cuenta-modulos').textContent = `${n}/${MODULOS.length}`;
-  const faltan = NECESARIOS.filter((m) => !instalado(m));
-  const btn = $('#btn-encender');
-  if (btn) {
-    btn.disabled = faltan.length > 0;
-    btn.classList.toggle('btn-primario', !faltan.length);
-    $('#falta').textContent = faltan.length
-      ? `Para encenderlo faltan: ${faltan.map((m) => MODULO[m].nombre).join(', ')}`
-      : '¡Listo para encender! (Pueden seguir instalando módulos después)';
-  }
+  const barra = $('#barra-modulos');
+  if (barra) barra.style.width = `${(n / MODULOS.length) * 100}%`;
+  const cuenta = $('#cuenta-modulos');
+  if (cuenta) cuenta.textContent = `${n}/${MODULOS.length}`;
 }
 
 // ---------- crear ----------
@@ -289,8 +334,9 @@ function abrirCrear() {
     m.cerrar();
     sonido('instalar');
     render(true);
-    decir(`Equipo ${nombre}, bienvenidos. Escaneen la tarjeta de Identidad para darme un nombre.`);
-    aplicarTarjetaPendiente();
+    decir(`Equipo ${nombre}, bienvenidos. Sigan las misiones para armarme.`);
+    if (tarjetaPendiente) aplicarTarjetaPendiente();
+    else setTimeout(() => guia('bienvenida'), 600);
   });
 }
 
@@ -376,7 +422,7 @@ function abrirCodigoTarjeta() {
 function usarTarjeta(codigo) {
   const t = TARJETAS[codigo];
   if (!t || !eq()) return;
-  if (t.tipo === 'accion') { accion(t.accion); return; }
+  if (t.tipo === 'accion') { estado.cambiar({ logros: { acciones: { [codigo]: true } } }); accion(t.accion); return; }
   if (t.tipo === 'especial') { ataqueUltron(); return; }
   const m = t.modulo;
   const yaEstaba = instalado(m);
@@ -451,18 +497,20 @@ async function ataqueUltron() {
   leccion.el.querySelector('[data-ok]').addEventListener('click', leccion.cerrar);
 }
 
-// ---------- editores de módulos ----------
+// ---------- hojas de módulo: lo básico a la vista, lo demás en "Más opciones" ----------
 function cabezaModulo(m, nuevo, sabias) {
-  return `<div class="cabeza-modulo">${icono(m.id)}<div><h2>${m.nombre}</h2><span class="tenue">${esc(m.resumen)}</span></div></div>
-    ${nuevo ? `<p style="margin:0 0 6px;color:var(--verde);font-weight:700">✓ Módulo instalado</p>` : ''}
-    <div class="sabias"><b>¿SABÍAS QUE…?</b>${esc(sabias || m.sabias)}</div>`;
+  return `<div class="cabeza-modulo">${icono(m.id)}<div><h2>${nuevo ? `¡Módulo listo: ${esc(m.nombre)}!` : esc(m.nombre)}</h2></div></div>
+    <p class="sabias-corto">💡 ${esc(sabias || m.corto || m.sabias)}</p>`;
 }
+
+const LISTO = '<button class="btn btn-primario btn-grande" data-listo style="flex:1">Listo</button>';
+const ESCUCHAR = `<button class="btn btn-grande" data-probar>${icono('altavoz')} Escuchar</button>`;
 
 function abrirModulo(id, { nuevo = false, habilidad = null } = {}) {
   const m = MODULO[id];
   if (!instalado(id)) {
-    const md = modal(`${cabezaModulo(m, false)}
-      <p>Busquen en su sobre la tarjeta de color <b style="color:${m.color}">${m.nombre}</b> y escanéenla.</p>
+    const md = modal(`<div class="cabeza-modulo">${icono(m.id)}<div><h2>${esc(m.nombre)}</h2></div></div>
+      <p>Busquen en su sobre una tarjeta <b style="color:${m.color}">${esc(m.nombre.toUpperCase())}</b> y escanéenla.</p>
       <button class="btn btn-primario btn-grande" style="width:100%" data-esc>${icono('qr')} Escanear tarjeta</button>`, { color: m.color });
     md.el.querySelector('[data-esc]').addEventListener('click', () => { md.cerrar(); abrirEscanerTarjetas(); });
     return;
@@ -480,8 +528,8 @@ function guardarConFiltro(parche, m) {
   return true;
 }
 
-function chips(lista, destino) {
-  return `<div class="chips" data-destino="${destino}">${lista.map((s) => `<button type="button" class="chip">${esc(s)}</button>`).join('')}</div>`;
+function chips(lista, destino, actual = '') {
+  return `<div class="chips" data-destino="${destino}">${lista.map((s) => `<button type="button" class="chip ${s === actual ? 'activo' : ''}">${esc(s)}</button>`).join('')}</div>`;
 }
 function activarChips(raiz) {
   raiz.querySelectorAll('.chips[data-destino]').forEach((c) => c.addEventListener('click', (ev) => {
@@ -489,6 +537,8 @@ function activarChips(raiz) {
     if (!b) return;
     const input = raiz.querySelector(`#${c.dataset.destino}`);
     input.value = b.textContent;
+    c.querySelectorAll('.chip').forEach((x) => x.classList.toggle('activo', x === b));
+    sonido('clic');
     input.dispatchEvent(new Event('input'));
   }));
 }
@@ -496,11 +546,13 @@ function activarChips(raiz) {
 function editorIdentidad(m, nuevo) {
   const e = eq();
   const md = modal(`${cabezaModulo(m, nuevo)}
-    <label class="campo"><span>Nombre de su JARVIS</span><input type="text" id="f-jnombre" maxlength="16" value="${esc(e.jarvis.nombre)}" autocomplete="off"></label>
-    ${chips(SUGERENCIAS.nombres, 'f-jnombre')}
-    <label class="campo"><span>Lema del equipo</span><input type="text" id="f-lema" maxlength="60" value="${esc(e.jarvis.lema)}" placeholder="Ej. Ningún bug nos detiene" autocomplete="off"></label>
-    <p>Palabra de activación: <b id="f-activacion"></b></p>
-    <div class="fila-botones"><button class="btn btn-primario" data-guardar>Guardar</button><button class="btn" data-probar>${icono('altavoz')} Probar</button></div>`, { color: m.color });
+    <label class="campo"><span>¿Cómo se llama su JARVIS?</span><input type="text" id="f-jnombre" maxlength="16" value="${esc(e.jarvis.nombre === 'JARVIS' ? '' : e.jarvis.nombre)}" placeholder="Escriban un nombre o toquen uno" autocomplete="off"></label>
+    ${chips(SUGERENCIAS.nombres.slice(0, 6), 'f-jnombre', e.jarvis.nombre)}
+    <details class="mas"><summary>Más opciones: lema del equipo</summary>
+      <label class="campo"><span>Lema</span><input type="text" id="f-lema" maxlength="60" value="${esc(e.jarvis.lema)}" placeholder="Ej. Ningún bug nos detiene" autocomplete="off"></label>
+      <p class="tenue">Palabra de activación: <b id="f-activacion"></b></p>
+    </details>
+    <div class="fila-botones" style="margin-top:14px">${ESCUCHAR}${LISTO}</div>`, { color: m.color });
   const nombre = md.el.querySelector('#f-jnombre');
   const act = () => { md.el.querySelector('#f-activacion').textContent = `“Oye, ${nombre.value.trim() || 'JARVIS'}”`; };
   nombre.addEventListener('input', act);
@@ -511,7 +563,7 @@ function editorIdentidad(m, nuevo) {
     const d = datos().jarvis;
     decir(rellenar('Hola, soy {jarvis}. {lema}', { jarvis: d.nombre, lema: d.lema }));
   });
-  md.el.querySelector('[data-guardar]').addEventListener('click', () => {
+  md.el.querySelector('[data-listo]').addEventListener('click', () => {
     if (guardarConFiltro(datos(), md)) decir(rellenar('Me llamo {jarvis}. {lema}', vars()));
   });
 }
@@ -519,31 +571,48 @@ function editorIdentidad(m, nuevo) {
 function editorVoz(m, nuevo) {
   const e = eq();
   const base = VOCES[e.voz.id];
-  const voces = vocesEspanol();
   const md = modal(`${cabezaModulo(m, nuevo)}
-    <h3>${esc(base.nombre)}</h3><p class="tenue" style="margin-top:0">${esc(base.desc)} Escaneen otra tarjeta de voz para cambiar de estilo, o afínenla aquí:</p>
-    <label class="campo"><span>Tono (grave ↔ agudo): <b id="v-tono-n"></b></span><input type="range" id="v-tono" min="0" max="2" step="0.05" value="${e.voz.tono ?? base.tono}"></label>
-    <label class="campo"><span>Velocidad: <b id="v-vel-n"></b></span><input type="range" id="v-vel" min="0.5" max="1.8" step="0.05" value="${e.voz.velocidad ?? base.velocidad}"></label>
-    ${voces.length > 1 ? `<label class="campo"><span>Voz del aparato</span><select id="v-voz"><option value="">Automática</option>${voces.map((v) => `<option ${v.name === e.voz.vozNombre ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select></label>` : ''}
-    <div class="sabias"><b>DENTRO DEL CÓDIGO</b><span class="mono">voz.tono = <span id="v-codigo-t"></span>; voz.velocidad = <span id="v-codigo-v"></span>;</span></div>
-    <div class="fila-botones"><button class="btn btn-primario" data-guardar>Guardar</button><button class="btn" data-probar>${icono('altavoz')} Probar</button><button class="btn-texto" data-reset>Volver a la original</button></div>`, { color: m.color });
+    <p style="margin:0 0 4px;font-size:20px"><b>${esc(base.nombre)}</b> · <span class="tenue">${esc(base.desc)}</span></p>
+    <p class="tenue" style="margin:0">¿No les convence? Escaneen otra tarjeta de voz y comparen.</p>
+    <details class="mas"><summary>Más opciones: afinar la voz</summary>
+      <label class="campo"><span>Tono (grave ↔ agudo): <b id="v-tono-n"></b></span><input type="range" id="v-tono" min="0" max="2" step="0.05" value="${e.voz.tono ?? base.tono}"></label>
+      <label class="campo"><span>Velocidad: <b id="v-vel-n"></b></span><input type="range" id="v-vel" min="0.5" max="1.8" step="0.05" value="${e.voz.velocidad ?? base.velocidad}"></label>
+      <label class="campo"><span>Voz del aparato</span><select id="v-voz"><option value="">Automática</option></select></label>
+      <p class="tenue" style="font-size:14px;margin:0">Usando: <span id="v-usando">…</span></p>
+      <p class="mono tenue" style="font-size:13px">voz.tono = <span id="v-codigo-t"></span>; voz.velocidad = <span id="v-codigo-v"></span>;</p>
+      <button class="btn-texto" data-reset>Volver a la original</button>
+    </details>
+    <div class="fila-botones" style="margin-top:14px">${ESCUCHAR}${LISTO}</div>`, { color: m.color });
   const tono = md.el.querySelector('#v-tono');
   const vel = md.el.querySelector('#v-vel');
+  const select = md.el.querySelector('#v-voz');
+  const ajustes = () => ({ tono: Number(tono.value), velocidad: Number(vel.value), voz: base.voz, vozNombre: select.value || '' });
   const pintar = () => {
     md.el.querySelector('#v-tono-n').textContent = Number(tono.value).toFixed(2);
     md.el.querySelector('#v-vel-n').textContent = `${Number(vel.value).toFixed(2)}×`;
     md.el.querySelector('#v-codigo-t').textContent = Number(tono.value).toFixed(2);
     md.el.querySelector('#v-codigo-v').textContent = Number(vel.value).toFixed(2);
+    const v = vozElegida(ajustes());
+    md.el.querySelector('#v-usando').textContent = v ? `${v.name} (${v.lang})` : 'la voz del aparato';
   };
-  tono.addEventListener('input', pintar);
-  vel.addEventListener('input', pintar);
+  // la lista de voces del aparato puede tardar en cargar: se llena cuando esté
+  listasVoces().then(() => {
+    vocesEspanol().forEach((v) => {
+      const op = document.createElement('option');
+      op.textContent = v.name;
+      op.value = v.name;
+      if (v.name === e.voz.vozNombre) op.selected = true;
+      select.appendChild(op);
+    });
+    pintar();
+  });
+  [tono, vel, select].forEach((x) => x.addEventListener('input', pintar));
   pintar();
-  const ajustes = () => ({ tono: Number(tono.value), velocidad: Number(vel.value), voz: base.voz, vozNombre: md.el.querySelector('#v-voz')?.value || '' });
   md.el.querySelector('[data-probar]').addEventListener('click', () => { subtitulo('¿Qué tal sueno así?'); hablar(`¿Qué tal sueno así? Soy ${eq().jarvis.nombre}.`, ajustes()); });
-  md.el.querySelector('[data-reset]').addEventListener('click', () => { tono.value = base.tono; vel.value = base.velocidad; pintar(); });
-  md.el.querySelector('[data-guardar]').addEventListener('click', () => {
+  md.el.querySelector('[data-reset]').addEventListener('click', () => { tono.value = base.tono; vel.value = base.velocidad; select.value = ''; pintar(); });
+  md.el.querySelector('[data-listo]').addEventListener('click', () => {
     const a = ajustes();
-    if (guardarConFiltro({ voz: { tono: a.tono, velocidad: a.velocidad, vozNombre: a.vozNombre } }, md)) decir('Voz guardada.');
+    if (guardarConFiltro({ voz: { tono: a.tono, velocidad: a.velocidad, vozNombre: a.vozNombre } }, md)) decir('¡Me encanta mi voz!');
   });
 }
 
@@ -551,10 +620,11 @@ function editorNucleo(m, nuevo) {
   const e = eq();
   let color = e.nucleo.color || '#3fd0ff';
   const md = modal(`${cabezaModulo(m, nuevo)}
-    <h3>${esc(NUCLEOS[e.nucleo.id].nombre)}</h3><p class="tenue" style="margin-top:0">${esc(NUCLEOS[e.nucleo.id].desc)} Escaneen otra tarjeta de núcleo para cambiar la forma. Escojan el color:</p>
-    <div class="centro"><canvas id="vista-nucleo" style="width:180px;height:180px"></canvas></div>
+    <p style="margin:0 0 4px"><b>${esc(NUCLEOS[e.nucleo.id].nombre)}</b> · <span class="tenue">${esc(NUCLEOS[e.nucleo.id].desc)}</span></p>
+    <div class="centro"><canvas id="vista-nucleo" style="width:160px;height:160px"></canvas></div>
+    <p style="margin:0 0 6px"><b>Escojan un color:</b></p>
     <div class="chips" id="colores">${COLORES.map((c) => `<button type="button" class="chip ${c.valor === color ? 'activo' : ''}" data-color="${c.valor}"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${c.valor};vertical-align:-2px"></span> ${c.nombre}</button>`).join('')}</div>
-    <div class="fila-botones" style="margin-top:14px"><button class="btn btn-primario" data-guardar>Guardar</button></div>`, { color: m.color, alCerrar: () => muestra.destruir() });
+    <div class="fila-botones" style="margin-top:14px">${LISTO}</div>`, { color: m.color, alCerrar: () => muestra.destruir() });
   const muestra = new Nucleo(md.el.querySelector('#vista-nucleo'), { forma: NUCLEOS[e.nucleo.id].forma, color });
   md.el.querySelector('#colores').addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-color]');
@@ -564,30 +634,34 @@ function editorNucleo(m, nuevo) {
     muestra.poner({ color });
     sonido('clic');
   });
-  md.el.querySelector('[data-guardar]').addEventListener('click', () => { if (guardarConFiltro({ nucleo: { color } }, md)) decir(frase('listo')); });
+  md.el.querySelector('[data-listo]').addEventListener('click', () => { if (guardarConFiltro({ nucleo: { color } }, md)) decir(frase('listo')); });
 }
 
 function editorAmbiente(m, nuevo) {
   const a = AMBIENTES[eq().ambiente.id];
-  modal(`${cabezaModulo(m, nuevo)}
-    <h3>${esc(a.nombre)}</h3><p>${esc(a.desc)}</p>
-    <p class="tenue">Escaneen otra tarjeta de ambiente para cambiar el escenario.</p>`, { color: m.color });
+  const md = modal(`${cabezaModulo(m, nuevo)}
+    <p style="margin:0"><b>${esc(a.nombre)}</b> · <span class="tenue">${esc(a.desc)}</span></p>
+    <p class="tenue">¿Otro escenario? Escaneen otra tarjeta de ambiente.</p>
+    <div class="fila-botones">${LISTO}</div>`, { color: m.color });
+  md.el.querySelector('[data-listo]').addEventListener('click', md.cerrar);
 }
 
 function editorPersonalidad(m, nuevo) {
   const e = eq();
   const p = PERSONALIDADES[e.personalidad.id];
+  const fila = (id, etiqueta, opciones, valor, ejemplo) => `<div class="fila-dir">
+      <span class="etq">${etiqueta}</span>
+      ${chips(opciones, id, valor)}
+      <input type="text" id="${id}" maxlength="80" value="${esc(valor)}" placeholder="o escriban la suya: ${esc(ejemplo)}" autocomplete="off">
+    </div>`;
   const md = modal(`${cabezaModulo(m, nuevo)}
-    <h3>${esc(p.nombre)}</h3><p class="tenue" style="margin-top:0">${esc(p.descripcion)} Ahora escriban su <b>directiva principal</b>: así va a pensar y hablar su JARVIS cuando le pregunten algo.</p>
-    <label class="campo"><span>Hablas como…</span><input type="text" id="d-habla" maxlength="80" value="${esc(e.personalidad.habla)}" placeholder="${esc(p.habla)}" autocomplete="off"></label>
-    ${chips([p.habla, ...SUGERENCIAS.habla], 'd-habla')}
-    <label class="campo"><span>Te encanta…</span><input type="text" id="d-encanta" maxlength="80" value="${esc(e.personalidad.encanta)}" placeholder="los videojuegos" autocomplete="off"></label>
-    ${chips(SUGERENCIAS.encanta, 'd-encanta')}
-    <label class="campo"><span>Nunca…</span><input type="text" id="d-nunca" maxlength="80" value="${esc(e.personalidad.nunca)}" placeholder="se rinde" autocomplete="off"></label>
-    ${chips(SUGERENCIAS.nunca, 'd-nunca')}
-    <h3 style="margin-top:16px">Su directiva (prompt de sistema)</h3>
-    <pre class="codigo" id="d-vista"></pre>
-    <div class="fila-botones" style="margin-top:12px"><button class="btn btn-primario" data-guardar>Guardar directiva</button><button class="btn" data-probar>${icono('altavoz')} Escuchar</button></div>`, { color: m.color });
+    <p style="margin:0 0 10px"><b>${esc(p.nombre)}</b> · <span class="tenue">${esc(p.descripcion)}</span></p>
+    <p style="margin:0 0 10px">Armen su <b>directiva principal</b>: toquen una idea en cada fila.</p>
+    ${fila('d-habla', 'Habla como…', [p.habla, ...SUGERENCIAS.habla.slice(0, 3)], e.personalidad.habla, 'un pirata')}
+    ${fila('d-encanta', 'Le encanta…', SUGERENCIAS.encanta.slice(0, 4), e.personalidad.encanta, 'el fútbol')}
+    ${fila('d-nunca', 'Nunca…', SUGERENCIAS.nunca.slice(0, 4), e.personalidad.nunca, 'se rinde')}
+    <details class="mas"><summary>Ver su directiva completa (el prompt)</summary><pre class="codigo" id="d-vista"></pre></details>
+    <div class="fila-botones" style="margin-top:14px">${ESCUCHAR}${LISTO}</div>`, { color: m.color });
   activarChips(md.el);
   const val = (id) => md.el.querySelector(`#${id}`).value.trim();
   const pintar = () => {
@@ -595,9 +669,12 @@ function editorPersonalidad(m, nuevo) {
   };
   md.el.querySelectorAll('input').forEach((i) => i.addEventListener('input', pintar));
   pintar();
-  md.el.querySelector('[data-probar]').addEventListener('click', () => decir(rellenar(p.frases.presentacion, vars())));
-  md.el.querySelector('[data-guardar]').addEventListener('click', () => {
-    if (guardarConFiltro({ personalidad: { habla: val('d-habla'), encanta: val('d-encanta'), nunca: val('d-nunca') } }, md)) decir('Directiva principal guardada. Ya sé quién soy.');
+  md.el.querySelector('[data-probar]').addEventListener('click', () => {
+    const encanta = val('d-encanta');
+    decir(`${rellenar(p.frases.saludo, vars())}${encanta ? ` Me encantan ${encanta}.` : ''}`);
+  });
+  md.el.querySelector('[data-listo]').addEventListener('click', () => {
+    if (guardarConFiltro({ personalidad: { habla: val('d-habla'), encanta: val('d-encanta'), nunca: val('d-nunca') } }, md)) decir('Directiva guardada. Ya sé quién soy.');
   });
 }
 
@@ -606,13 +683,14 @@ function editorMemoria(m, nuevo) {
   const integrantes = [...(e.memoria.integrantes || [])];
   while (integrantes.length < 6) integrantes.push('');
   const md = modal(`${cabezaModulo(m, nuevo)}
-    <label class="campo"><span>Integrantes (solo nombres de pila)</span></label>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${integrantes.slice(0, 6).map((n, i) => `<input type="text" class="m-int" maxlength="20" value="${esc(n)}" placeholder="Integrante ${i + 1}" autocomplete="off">`).join('')}</div>
-    <label class="campo"><span>Preparatoria</span><input type="text" id="m-prepa" maxlength="60" value="${esc(e.memoria.prepa)}" autocomplete="off"></label>
-    <label class="campo"><span>Algo que JARVIS deba saber de ustedes</span><input type="text" id="m-dato" maxlength="120" value="${esc(e.memoria.dato)}" placeholder="Ej. Somos fans del béisbol" autocomplete="off"></label>
-    <p class="tenue" style="font-size:15px">No escriban apellidos, teléfonos ni correos: JARVIS no los necesita.</p>
-    <div class="fila-botones"><button class="btn btn-primario" data-guardar>Guardar</button></div>`, { color: m.color });
-  md.el.querySelector('[data-guardar]').addEventListener('click', () => {
+    <p style="margin:0 0 8px"><b>¿Quiénes son?</b> <span class="tenue">Solo nombres de pila.</span></p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${integrantes.slice(0, 6).map((n, i) => `<input type="text" class="m-int" maxlength="20" value="${esc(n)}" placeholder="Nombre ${i + 1}" autocomplete="off">`).join('')}</div>
+    <details class="mas"><summary>Más opciones: prepa y algo de ustedes</summary>
+      <label class="campo"><span>Preparatoria</span><input type="text" id="m-prepa" maxlength="60" value="${esc(e.memoria.prepa)}" autocomplete="off"></label>
+      <label class="campo"><span>Algo que JARVIS deba saber de ustedes</span><input type="text" id="m-dato" maxlength="120" value="${esc(e.memoria.dato)}" placeholder="Ej. Somos fans del béisbol" autocomplete="off"></label>
+    </details>
+    <div class="fila-botones" style="margin-top:14px">${LISTO}</div>`, { color: m.color });
+  md.el.querySelector('[data-listo]').addEventListener('click', () => {
     const lista = $$('.m-int', md.el).map((i) => i.value.trim().split(/\s+/)[0]).filter(Boolean);
     const ok = guardarConFiltro({ memoria: { integrantes: lista, prepa: md.el.querySelector('#m-prepa').value.trim(), dato: md.el.querySelector('#m-dato').value.trim() } }, md);
     if (ok && lista.length) decir(`Memoria guardada. Hola, ${lista.length > 1 ? `${lista.slice(0, -1).join(', ')} y ${lista[lista.length - 1]}` : lista[0]}.`);
@@ -622,20 +700,31 @@ function editorMemoria(m, nuevo) {
 function editorEscudo(m, nuevo) {
   const e = eq();
   const md = modal(`${cabezaModulo(m, nuevo)}
-    <h3>Reglas del staff (nadie las puede cambiar)</h3>
-    <div class="lista">${REGLAS_FIJAS.map((r) => `<div class="item" style="grid-template-columns:auto 1fr;align-items:center">🔒 <span>${esc(r)}</span></div>`).join('')}</div>
-    <label class="campo"><span>Regla del equipo (opcional)</span><input type="text" id="e-regla" maxlength="80" value="${esc(e.escudo.regla)}" placeholder="Ej. Nunca cuenta spoilers de películas" autocomplete="off"></label>
-    <div class="fila-botones"><button class="btn btn-primario" data-guardar>Guardar</button></div>`, { color: m.color });
-  md.el.querySelector('[data-guardar]').addEventListener('click', () => {
-    if (guardarConFiltro({ escudo: { regla: md.el.querySelector('#e-regla').value.trim() } }, md)) decir('Escudo actualizado.');
+    <p style="margin:0 0 6px"><b>Reglas que nadie puede romper:</b></p>
+    <ul class="reglas">${REGLAS_FIJAS.map((r) => `<li>🔒 ${esc(r)}</li>`).join('')}</ul>
+    <details class="mas"><summary>Más opciones: agregar una regla del equipo</summary>
+      <label class="campo"><span>Regla del equipo</span><input type="text" id="e-regla" maxlength="80" value="${esc(e.escudo.regla)}" placeholder="Ej. Nunca cuenta spoilers de películas" autocomplete="off"></label>
+    </details>
+    <div class="fila-botones" style="margin-top:14px">${LISTO}</div>`, { color: m.color });
+  md.el.querySelector('[data-listo]').addEventListener('click', () => {
+    if (guardarConFiltro({ escudo: { regla: md.el.querySelector('#e-regla').value.trim() } }, md)) decir('Escudo activado.');
   });
 }
 
 function editorHabilidades(m, nuevo, habilidad) {
-  modal(`${cabezaModulo(m, nuevo && !habilidad, habilidad ? null : m.sabias)}
-    ${habilidad ? `<div class="sabias" style="--c:var(--verde)"><b>NUEVA HABILIDAD: ${esc(habilidad.nombre.toUpperCase())}</b>${esc(habilidad.sabias)}</div>` : ''}
-    <div class="lista">${Object.entries(HABILIDADES).map(([cod, h]) => `<div class="item"><div class="cabeza"><b>${icono(h.id)} ${esc(h.nombre)}</b><span class="etiqueta ${tieneHabilidad(h.id) ? 'ok' : ''}">${tieneHabilidad(h.id) ? 'Instalada' : `Tarjeta ${cod}`}</span></div><span class="tenue">${esc(h.desc)}</span></div>`).join('')}</div>
-    ${eq().encendido ? '' : '<p class="tenue">Las habilidades se usan cuando su JARVIS esté encendido.</p>'}`, { color: m.color });
+  let cuerpo;
+  if (habilidad) {
+    const donde = habilidad.id === 'chat'
+      ? (conIA() ? 'Desde ahora pueden preguntarle lo que sea en Hablar.' : 'Esta tablet no tiene la súper inteligencia conectada: JARVIS sigue con su cerebro básico.')
+      : (eq().encendido ? `Búsquenla abajo: apareció la pestaña ${habilidad.nombre}.` : `Aparecerá como pestaña cuando enciendan a ${eq().jarvis.nombre}.`);
+    cuerpo = `<div class="cabeza-modulo">${icono(habilidad.id)}<div><h2>¡${esc(habilidad.nombre)} instalada!</h2></div></div>
+      <p class="sabias-corto">💡 ${esc(habilidad.sabias)}</p><p><b>${esc(donde)}</b></p>`;
+  } else {
+    cuerpo = `${cabezaModulo(m, false)}
+      <div class="lista">${Object.entries(HABILIDADES).filter(([, h]) => h.id !== 'chat' || conIA()).map(([cod, h]) => `<div class="item"><div class="cabeza"><b>${icono(h.id)} ${esc(h.nombre)}</b><span class="etiqueta ${tieneHabilidad(h.id) ? 'ok' : ''}">${tieneHabilidad(h.id) ? 'Instalada' : `Tarjeta ${cod}`}</span></div><span class="tenue">${esc(h.desc)}</span></div>`).join('')}</div>`;
+  }
+  const md = modal(`${cuerpo}<div class="fila-botones" style="margin-top:14px">${LISTO}</div>`, { color: m.color });
+  md.el.querySelector('[data-listo]').addEventListener('click', md.cerrar);
 }
 
 // ---------- encendido ----------
@@ -694,9 +783,11 @@ async function encender() {
     n.destruir();
     capa.remove();
     callar();
+    pestana = 'misiones';
     render(true);
     if (!historial.length) historial.push({ role: 'assistant', content: texto, cerebro: 'basico' });
-    subtitulo(texto);
+    subtitulo('¡Tengo misiones nuevas para ustedes!');
+    setTimeout(() => decir('¡Tengo misiones nuevas para ustedes!'), 300);
   };
   const boton = capa.querySelector('#continuar');
   boton.hidden = false;
@@ -706,14 +797,16 @@ async function encender() {
 }
 
 // ---------- vista JARVIS ----------
+// Las pestañas aparecen poco a poco: Hablar y Misiones al encender; Bitácora, Puntos y Cámara al
+// escanear su tarjeta.
 const PESTANAS = [
   { id: 'hablar', nombre: 'Hablar', icono: 'chat', habilidad: null },
+  { id: 'misiones', nombre: 'Misiones', icono: 'accion', habilidad: null },
   { id: 'bitacora', nombre: 'Bitácora', icono: 'bitacora', habilidad: 'bitacora' },
   { id: 'puntos', nombre: 'Puntos', icono: 'puntos', habilidad: 'puntos' },
   { id: 'camara', nombre: 'Cámara', icono: 'camara', habilidad: 'camara' },
-  { id: 'modulos', nombre: 'Módulos', icono: 'taller', habilidad: null },
-  { id: 'ficha', nombre: 'Ficha', icono: 'ficha', habilidad: null },
 ];
+const pestanasVisibles = () => PESTANAS.filter((p) => !p.habilidad || tieneHabilidad(p.habilidad));
 
 function renderJarvis() {
   app.innerHTML = `<section class="jarvis">${htmlEscenario()}<div><div class="contenido-pestana" id="recordatorio" style="padding-bottom:0"></div><div class="contenido-pestana" id="pestana"></div></div></section>
@@ -726,10 +819,13 @@ function renderJarvis() {
 function pintarPestanas() {
   const nav = $('#pestanas');
   if (!nav) return;
-  nav.innerHTML = PESTANAS.map((p) => {
-    const bloqueada = p.habilidad && !tieneHabilidad(p.habilidad);
-    return `<button class="${p.id === pestana ? 'activa' : ''} ${bloqueada ? 'bloqueada' : ''}" data-p="${p.id}">${icono(p.icono)}<span>${p.nombre}</span></button>`;
-  }).join('');
+  const visibles = pestanasVisibles();
+  if (!visibles.some((p) => p.id === pestana)) pestana = 'hablar';
+  const pendientes = misionesPendientes();
+  const html = visibles.map((p) => `<button class="${p.id === pestana ? 'activa' : ''}" data-p="${p.id}">${icono(p.icono)}<span>${p.nombre}${p.id === 'misiones' && pendientes ? ` <i class="globo">${pendientes}</i>` : ''}</span></button>`).join('');
+  if (nav.dataset.html === html) return;
+  nav.dataset.html = html;
+  nav.innerHTML = html;
   nav.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
     if (pestana === 'camara') cerrarCamara();
     pestana = b.dataset.p;
@@ -738,64 +834,58 @@ function pintarPestanas() {
   }));
 }
 
-function bloqueo(codigoTarjeta) {
-  const h = HABILIDADES[codigoTarjeta];
-  return `<div class="panel centro" style="margin-top:8px">
-    <p style="font-size:20px;margin-top:0">🔒 <b>${esc(h.nombre)}</b> no está instalada.</p>
-    <p class="tenue">Escaneen la tarjeta <b class="mono">${codigoTarjeta}</b> de su sobre para activarla.</p>
-    <button class="btn btn-primario" data-esc>${icono('qr')} Escanear tarjeta</button></div>`;
-}
-
 function pintarPestana() {
   const cont = $('#pestana');
   if (!cont) return;
-  const p = PESTANAS.find((x) => x.id === pestana);
-  if (p.habilidad && !tieneHabilidad(p.habilidad)) {
-    cont.innerHTML = bloqueo(HABILIDAD_POR_ID[p.habilidad].codigo);
-    cont.querySelector('[data-esc]').addEventListener('click', abrirEscanerTarjetas);
-    return;
-  }
-  ({ hablar: pestanaHablar, bitacora: pestanaBitacora, puntos: pestanaPuntos, camara: pestanaCamara, modulos: pestanaModulos, ficha: pestanaFicha })[pestana](cont);
+  ({ hablar: pestanaHablar, misiones: pestanaMisiones, bitacora: pestanaBitacora, puntos: pestanaPuntos, camara: pestanaCamara })[pestana](cont);
 }
 
 // --- hablar ---
-const PREGUNTAS = ['¿Qué es una dirección IP?', 'Dame una pista para el taller de Redes', '¿Qué estudia alguien de ITC?', '¿Cómo sé si una contraseña es segura?', '¿Qué es un algoritmo?'];
+const PREGUNTAS = ['¿Qué es una dirección IP?', '¿Qué estudia alguien de ITC?', '¿Cómo sé si una contraseña es segura?', '¿Qué es un algoritmo?', '¿Qué sigue en la agenda?', '¿Cómo vencemos a Ultrón?', '¿Cómo funcionas?'];
 
 function pestanaHablar(cont) {
   const est = estacionActual();
-  const preguntas = est ? AYUDA_ESTACIONES[est].preguntas : PREGUNTAS;
+  const a = est ? AYUDA_ESTACIONES[est] : null;
+  const sugeridas = [...(est ? a.preguntas : PREGUNTAS)].sort(() => Math.random() - 0.5).slice(0, 2);
   cont.innerHTML = `
-    <div class="estaciones-fila"><span class="tenue" style="font-size:14px">¿Dónde están ahora?</span>
-      <div class="chips" id="estaciones">
-        <button class="chip ${est ? '' : 'activo'}" data-est="">General</button>
-        ${ORDEN_ESTACIONES.map((id) => `<button class="chip ${est === id ? 'activo' : ''}" data-est="${id}">${esc(AYUDA_ESTACIONES[id].nombre)}</button>`).join('')}
-      </div></div>
-    <div id="ayuda"></div>
-    <div class="chips" id="rapidas">
-      <button class="chip" data-r="saludo">👋 Saludo</button>
-      <button class="chip" data-r="chiste">😂 Chiste</button>
-      <button class="chip" data-r="dato">💡 Dato curioso</button>
-      ${preguntas.map((q) => `<button class="chip" data-q="${esc(q)}">${esc(q)}</button>`).join('')}
-    </div>
     <form class="chat-entrada" id="f-chat">
       ${puedeEscuchar ? `<button type="button" class="btn-redondo" id="mic" aria-label="Hablar">${icono('mic')}</button>` : ''}
       <input type="text" id="pregunta" maxlength="300" placeholder="Pregúntale a ${esc(eq().jarvis.nombre)}…" autocomplete="off">
       <button class="btn-redondo" aria-label="Enviar">${icono('enviar')}</button>
     </form>
-    <p class="tenue" id="cerebro-info" style="font-size:14px;margin:6px 0 0"></p>
+    <div class="chips" id="rapidas" style="margin-top:10px">
+      <button class="chip" data-r="chiste">😂 Chiste</button>
+      <button class="chip" data-r="dato">💡 Dato curioso</button>
+      ${sugeridas.map((q) => `<button class="chip" data-q="${esc(q)}">${esc(q)}</button>`).join('')}
+    </div>
+    <div class="taller-ayuda">
+      <button class="btn btn-chico" id="b-estacion">📍 ${est ? esc(a.nombre) : '¿En qué taller están?'}</button>
+      ${est ? '<button class="btn btn-chico btn-primario" id="b-pista">💡 Pista</button>' : ''}
+      <button class="btn-texto" id="b-guia-pista" style="min-height:36px">📺 Ver cómo</button>
+    </div>
+    <div id="pista-caja"></div>
+    ${est ? `<details class="mas" id="mas-ayuda"><summary>Más ayuda de ${esc(a.nombre)}</summary><div id="ayuda"></div></details>` : ''}
+    <p class="tenue" id="cerebro-info" style="font-size:13px;margin:8px 0 0"></p>
     <div class="historial" id="historial"></div>`;
-  cont.querySelector('#estaciones').addEventListener('click', (ev) => {
-    const b = ev.target.closest('[data-est]');
-    if (!b) return;
-    elegirEstacion(b.dataset.est);
-    pintarPestana();
+  cont.querySelector('#b-estacion').addEventListener('click', elegirEstacionVentana);
+  cont.querySelector('#b-guia-pista').addEventListener('click', () => guia('pista'));
+  cont.querySelector('#b-pista')?.addEventListener('click', () => {
+    const r = siguientePista(est);
+    if (r.titulo === 'PRIMERO') {
+      const mas = $('#mas-ayuda');
+      if (mas) { mas.open = true; mas.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    }
+    $('#pista-caja').innerHTML = `<div class="sabias" style="--c:var(--amarillo)"><b>${esc(r.titulo)}</b>${esc(r.texto)}</div>`;
+    if (r.nueva) { sonido('escaneo'); estado.cambiar({ logros: { pista: 1 } }); }
+    decir(r.texto);
+    const ayuda = $('#ayuda');
+    if (ayuda) montarAyuda(ayuda, est);
   });
   if (est) montarAyuda(cont.querySelector('#ayuda'), est);
   cont.querySelector('#rapidas').addEventListener('click', (ev) => {
     const b = ev.target.closest('.chip');
     if (!b) return;
-    if (b.dataset.r === 'saludo') decir(frase('saludo'), { sonar: true });
-    else if (b.dataset.r) accion(b.dataset.r);
+    if (b.dataset.r) accion(b.dataset.r);
     else if (b.dataset.q) preguntar(b.dataset.q);
   });
   cont.querySelector('#f-chat').addEventListener('submit', (ev) => {
@@ -822,6 +912,22 @@ function pestanaHablar(cont) {
   pintarHistorial();
 }
 
+/** Ventana para elegir el taller donde están (para darles pistas de ese taller). */
+function elegirEstacionVentana() {
+  const est = estacionActual();
+  const m = modal(`<h2>¿En qué taller están?</h2>
+    <p class="tenue" style="margin-top:0">JARVIS les dará pistas de ese taller (nunca las respuestas).</p>
+    <div class="lista">${ORDEN_ESTACIONES.map((id) => `<button class="item estacion-op ${id === est ? 'activa' : ''}" data-est="${id}"><b>📍 ${esc(AYUDA_ESTACIONES[id].nombre)}</b><span class="tenue">${esc(AYUDA_ESTACIONES[id].reto)}</span></button>`).join('')}
+      <button class="item estacion-op ${est ? '' : 'activa'}" data-est=""><b>Ninguno por ahora</b></button></div>`);
+  m.el.querySelectorAll('[data-est]').forEach((b) => b.addEventListener('click', () => {
+    m.cerrar();
+    elegirEstacion(b.dataset.est);
+    pestana = 'hablar';
+    pintarPestanas();
+    pintarPestana();
+  }));
+}
+
 /** Qué cerebro está usando JARVIS (debajo del chat). */
 function pintarCerebro() {
   pintarBarra();
@@ -829,14 +935,12 @@ function pintarCerebro() {
   if (!el) return;
   if (cerebroIA()) {
     el.innerHTML = Date.now() < iaFallaHasta
-      ? '✨ El Cerebro IA no responde por ahora: contesto con mi 🧠 cerebro básico.'
+      ? '✨ La súper inteligencia no responde por ahora: contesto con mi 🧠 cerebro básico.'
       : restantesIA === 0
-        ? '✨ Se acabaron las preguntas de IA de hoy: sigo con mi 🧠 cerebro básico.'
-        : `✨ Cerebro IA${typeof restantesIA === 'number' ? ` · ⚡ ${restantesIA} preguntas por hoy` : ''}. JARVIS da pistas, no respuestas.`;
-  } else if (tieneHabilidad('chat')) {
-    el.innerHTML = '🧠 Cerebro básico: la IA no está disponible en esta tablet, así que contesto con textos escritos por personas.';
+        ? '✨ Se acabaron las preguntas de súper inteligencia de hoy: sigo con mi 🧠 cerebro básico.'
+        : `✨ Súper inteligencia activa${typeof restantesIA === 'number' ? ` · ⚡ ${restantesIA} preguntas por hoy` : ''}.`;
   } else {
-    el.innerHTML = '🧠 Cerebro básico: busco palabras clave y contesto con textos escritos por personas. Escaneen la tarjeta <b class="mono">H4 · Cerebro IA</b> para conectarme a una inteligencia artificial.';
+    el.innerHTML = '🧠 Cerebro básico: contesto con textos escritos por personas. Pregúntenme de CODEXIA, de los talleres o de tecnología.';
   }
 }
 
@@ -878,6 +982,7 @@ async function preguntar(texto) {
     respuesta = r.accion === 'pista' ? pistaDeChat() : r.texto;
   }
   historial.push({ role: 'assistant', content: respuesta, cerebro });
+  estado.cambiar({ logros: { preguntas: ((eq().logros && eq().logros.preguntas) || 0) + 1 } });
   guardarHistorial();
   pintarHistorial();
   pintarCerebro();
@@ -1007,6 +1112,7 @@ async function abrirZonaCamara(cont) {
     const blob = await capturar(video, { titulo: `${eq().nombre}`, subtitulo: `${eq().jarvis.nombre} · ${lugar} · ${new Date().toLocaleDateString('es-MX')}`, color: colorEquipo() });
     if (!blob) return;
     await guardarFoto(blob, { equipo: eq().creado, lugar });
+    if (!(eq().logros && eq().logros.foto)) estado.cambiar({ logros: { foto: 1 } });
     aviso('📸 Foto guardada');
     pintarGaleria();
   });
@@ -1041,19 +1147,49 @@ function verFoto(f) {
   });
 }
 
-// --- módulos ---
-function pestanaModulos(cont) {
-  cont.innerHTML = `<h2>Módulos</h2>
-    <p class="tenue" style="margin-top:0">Escaneen cualquier tarjeta para cambiar a su JARVIS.</p>
-    ${htmlModulos()}
-    <div class="fila-botones" style="margin-top:12px"><button class="btn btn-primario" data-esc>${icono('qr')} Escanear tarjeta</button><button class="btn-texto" data-cod>Escribir código</button></div>`;
-  cont.querySelector('[data-esc]').addEventListener('click', abrirEscanerTarjetas);
-  cont.querySelector('[data-cod]').addEventListener('click', abrirCodigoTarjeta);
-  pintarModulos();
+// --- misiones ---
+function pestanaMisiones(cont) {
+  const lista = misionesVisibles(conIA()).filter((m) => m.fase === 2);
+  const pendientes = lista.filter((m) => !cumplida(m, eq()));
+  const hechas = lista.filter((m) => cumplida(m, eq()));
+  const total = lista.filter((m) => !m.opcional).length;
+  const listas = hechas.filter((m) => !m.opcional).length;
+  const tarjetaMision = (m, destacada) => {
+    const hecha = cumplida(m, eq());
+    const prog = m.progreso ? m.progreso(eq()) : null;
+    return `<div class="mision-item ${destacada ? 'destacada' : ''} ${hecha ? 'hecha' : ''}" style="--c:${m.color}">
+      <span class="mision-icono">${hecha ? '✓' : icono(m.icono)}</span>
+      <div><b>${esc(m.titulo)}${m.opcional ? ' <span class="etiqueta">extra</span>' : ''}${prog && !hecha ? ` <span class="mision-estado">${prog[0]}/${prog[1]}</span>` : ''}</b>
+        ${hecha ? '' : `<span class="tenue">${esc(m.como)}</span>`}</div>
+      ${hecha ? '' : `<button class="btn btn-chico ${destacada ? 'btn-primario' : ''}" data-hacer="${m.id}">${m.ir ? 'Ir' : 'Escanear'}</button>`}
+    </div>`;
+  };
+  cont.innerHTML = `<div class="cabeza-misiones"><h2 style="margin:0">Misiones</h2><span class="mono">${listas}/${total}</span></div>
+    <div class="progreso" style="margin:8px 0 12px"><div class="barra-p"><i style="width:${(listas / Math.max(1, total)) * 100}%"></i></div></div>
+    ${pendientes.filter((m) => !m.opcional).length ? '' : `<div class="panel centro" style="margin-bottom:12px">🏆 <b>¡Completaron todas las misiones!</b><br><span class="tenue">Sigan platicando con ${esc(eq().jarvis.nombre)} o prueben otras tarjetas.</span></div>`}
+    <div class="lista">${pendientes.slice(0, 3).map((m, i) => tarjetaMision(m, i === 0)).join('')}
+      ${pendientes.length > 3 ? `<div class="mision-item bloqueada"><span class="mision-icono">🔒</span><div><b>${pendientes.length - 3} misiones más</b><span class="tenue">Se desbloquean al cumplir estas.</span></div></div>` : ''}</div>
+    ${hechas.length ? `<details class="mas"><summary>Completadas (${hechas.length})</summary><div class="lista">${hechas.map((m) => tarjetaMision(m)).join('')}</div></details>` : ''}
+    <div class="fila-botones" style="margin-top:14px">
+      <button class="btn btn-chico" data-accion="escanear">${icono('qr')} Escanear tarjeta</button>
+      <button class="btn-texto" data-accion="modulos">Ver módulos</button>
+      <button class="btn-texto" data-accion="ficha">Ver a ${esc(eq().jarvis.nombre)} por dentro</button>
+      <button class="btn-texto" data-accion="reencender">Repetir el encendido</button>
+    </div>`;
+  cont.querySelectorAll('[data-hacer]').forEach((b) => b.addEventListener('click', () => {
+    const m = MISIONES.find((x) => x.id === b.dataset.hacer);
+    if (m.ir === 'camara' && !tieneHabilidad('camara')) { aviso('Primero escaneen la tarjeta CÁMARA.'); abrirEscanerTarjetas(); return; }
+    if (m.ir) { pestana = m.ir; pintarPestanas(); pintarPestana(); return; }
+    abrirEscanerTarjetas();
+  }));
+  cont.querySelector('[data-accion="escanear"]').addEventListener('click', abrirEscanerTarjetas);
+  cont.querySelector('[data-accion="modulos"]').addEventListener('click', verModulos);
+  cont.querySelector('[data-accion="ficha"]').addEventListener('click', abrirFicha);
+  cont.querySelector('[data-accion="reencender"]').addEventListener('click', encender);
 }
 
-// --- ficha ---
-function pestanaFicha(cont) {
+// --- ficha: el JARVIS por dentro ---
+function abrirFicha() {
   const e = eq();
   const v = ajustesVoz();
   const s = (t) => `<span class="s">"${esc(t)}"</span>`;
@@ -1061,8 +1197,8 @@ function pestanaFicha(cont) {
   const habs = Object.entries(e.habilidades || {}).filter(([, x]) => x).map(([k]) => s(k)).join(', ');
   const p = PERSONALIDADES[e.personalidad.id];
   const encendidoEn = e.encendido ? hora(e.encendido) : '--:--';
-  cont.innerHTML = `<h2>Ficha técnica</h2>
-    <p class="tenue" style="margin-top:0">Esto es lo que programaron hoy. Así se ve su JARVIS por dentro:</p>
+  modal(`<h2>${esc(e.jarvis.nombre)} por dentro</h2>
+    <p class="tenue" style="margin-top:0">Esto es lo que programaron hoy:</p>
     <pre class="codigo"><span class="c">// jarvis.config.js</span>
 <span class="k">const</span> <span class="p">jarvis</span> = {
   nombre: ${s(e.jarvis.nombre)},
@@ -1073,7 +1209,7 @@ function pestanaFicha(cont) {
   ambiente: ${instalado('ambiente') ? s(AMBIENTES[e.ambiente.id].tipo) : '<span class="k">null</span>'},
   personalidad: ${s(p.nombre)},
   escudo: ${instalado('escudo') ? '<span class="k">true</span>' : '<span class="k">false</span>'},
-  cerebro: ${s(cerebroIA() ? 'ia + basico' : 'basico')},
+  cerebro: ${s(cerebroIA() ? 'super inteligencia + basico' : 'basico')},
   habilidades: [${habs}],
   encendido: ${s(encendidoEn)},
 };</pre>
@@ -1081,17 +1217,7 @@ function pestanaFicha(cont) {
     <pre class="codigo">Eres ${esc(e.jarvis.nombre)}, el asistente del equipo "${esc(e.nombre)}".
 Reglas del staff: ${esc(REGLAS_FIJAS.join(' '))}${e.escudo.regla ? `\nRegla del equipo: ${esc(e.escudo.regla)}` : ''}
 Personalidad: ${esc(p.nombre)}. Hablas como ${esc(e.personalidad.habla || p.habla)}.
-Te encanta ${esc(e.personalidad.encanta || 'ayudar a tu equipo')}. Nunca ${esc(e.personalidad.nunca || 'te rindes')}.</pre>
-    <h3 style="margin-top:16px">Logros</h3>
-    <div class="logros">
-      <span class="logro">⏻ Encendido a las ${encendidoEn}</span>
-      <span class="logro ${MODULOS.every((m) => instalado(m.id)) ? '' : 'no'}">🧩 Los 8 módulos</span>
-      <span class="logro ${Object.values(e.habilidades || {}).filter(Boolean).length === 4 ? '' : 'no'}">⚡ Las 4 habilidades</span>
-      <span class="logro ${e.logros && e.logros.ultron ? '' : 'no'}">🛡️ Sobrevivieron a Ultrón</span>
-      <span class="logro ${ESTACIONES.every((x) => (e.bitacora || {})[x.id]) ? '' : 'no'}">🗺️ Las 4 piezas</span>
-    </div>
-    <div class="fila-botones" style="margin-top:18px"><button class="btn-texto" data-reencender>Ver otra vez el encendido</button></div>`;
-  cont.querySelector('[data-reencender]').addEventListener('click', encender);
+Te encanta ${esc(e.personalidad.encanta || 'ayudar a tu equipo')}. Nunca ${esc(e.personalidad.nunca || 'te rindes')}.</pre>`);
 }
 
 // ---------- estaciones: ayuda y recordatorios ----------

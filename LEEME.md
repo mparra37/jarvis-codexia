@@ -7,7 +7,8 @@ Es una página web (sin instalar nada) que funciona en tablets Android, iPad y e
 | Archivo | Para qué |
 | --- | --- |
 | `index.html` | La app de cada equipo |
-| `presentacion/JARVIS_taller_CODEXIA.pptx` | El PowerPoint del presentador (16 diapositivas, con notas) |
+| `presentacion/JARVIS_taller_CODEXIA.pptx` | El PowerPoint del presentador: 18 diapositivas por fases, con notas, barras de tiempo que se llenan solas y videos |
+| `videos/` | Videos de ayuda grabados de la app (se ven en la app con “📺 Ver cómo” y en el PowerPoint); `demo.mp4` es todo seguido |
 | `tarjetas.html` | Tarjetas QR para imprimir (un sobre de 36 por equipo) y los carteles “¿Atorados?” de cada estación |
 | `staff.html` | Panel del staff: estado de la IA, pausa, batería por tablet y resultados VR (con PIN) |
 | `taller-vr.html` | JARVIS ya armado de la estación de Redes (videos, explicaciones, ayuda, resultados) |
@@ -17,10 +18,20 @@ Dirección cuando se publique: `https://mparra37.github.io/jarvis-codexia/`
 
 ---
 
+## Cómo se usa: misiones
+
+La app guía a cada equipo con **una misión a la vez** (qué tarjeta buscar y un botón grande para escanear). Lo demás se va descubriendo:
+
+1. **Armar:** nombre (IDENTIDAD), voz, forma (NÚCLEO) y personalidad (la directiva principal) → aparece INICIAR.
+2. **Encender:** JARVIS arranca y se presenta.
+3. **Descubrir:** misiones extra que se desbloquean de 3 en 3 (3 preguntas, escenario, memoria, herramientas, foto, escudo, tarjetas secretas, pedir una pista). Las pestañas Bitácora, Puntos y Cámara aparecen al escanear su tarjeta.
+
+Después de escanear, cada módulo muestra una sola idea y lo básico; lo demás está en “Más opciones”. El botón **?** de arriba tiene los videos de ayuda. Las misiones están en `js/misiones.js`.
+
 ## Dos cerebros
 
 - **Cerebro básico** (`js/cerebro.js`): viene desde el inicio y funciona sin internet. Busca palabras clave en la pregunta y contesta con textos escritos por personas (agenda, talleres, conceptos de cada estación, chistes, datos curiosos, “pista”…), con el estilo de la personalidad que eligió el equipo, y lo dice en voz alta. Así funcionaban los primeros chatbots, como ELIZA (1966).
-- **Cerebro IA** (tarjeta **H4**): la pregunta va al Worker de Cloudflare, que le pregunta a Claude con la personalidad, la memoria y la estación del equipo. Si la IA no contesta, el staff la pausa o se acaba la batería de la tablet, **contesta el cerebro básico** y la app lo avisa. Cada respuesta dice qué cerebro la dio.
+- **Súper inteligencia** (tarjeta **H4**, opcional): la pregunta va al Worker de Cloudflare, que le pregunta a Claude con la personalidad, la memoria y la estación del equipo. Si la IA no contesta, el staff la pausa o se acaba la batería de la tablet, **contesta el cerebro básico** y la app lo avisa. Cada respuesta dice qué cerebro la dio.
 
 Para usar solo el cerebro básico (sin API): en `js/config.js` pongan `IA: 'basico'`, o simplemente no configuren el Worker.
 
@@ -38,7 +49,9 @@ Para usar solo el cerebro básico (sin API): en `js/config.js` pongan `IA: 'basi
 
 Con solo este paso, todo funciona con el cerebro básico.
 
-## 2. El Cerebro IA (Cloudflare Worker con la API key) · ~15 minutos
+## 2. La súper inteligencia (opcional: Cloudflare Worker con la API key)
+
+Todo el taller funciona sin esto. Es solo para que, con la tarjeta H4, JARVIS pueda contestar cualquier pregunta con IA. (Si prefieren no usar la terminal ni `npm install`, se puede hacer pegando un solo archivo en la página de Cloudflare: pídanmelo cuando lo quieran configurar.)
 
 Necesitan una cuenta gratis de Cloudflare y una API key de Claude (console.anthropic.com → API Keys). En la consola de Anthropic pongan un **límite de gasto** mensual.
 
@@ -112,7 +125,11 @@ ANTHROPIC_API_KEY=sk-ant-... node dev/servidor.mjs
 
 PIN del staff en local: `1234`. Para probar en una tablet no sirve localhost (la cámara pide https): publiquen en GitHub Pages.
 
-## 5. Prueba piloto del taller VR
+## 5. Videos de ayuda
+
+Están grabados de la app real con `dev/grabar_videos.mjs` (Chrome con una cámara falsa que “ve” una tarjeta impresa, subtítulos y un círculo donde se toca). Si cambian la app, vuelvan a grabarlos: `cd dev && npm install puppeteer-core`, `pip install imageio-ffmpeg`, luego, con `node dev/servidor.mjs` corriendo, `node dev/grabar_videos.mjs`.
+
+## 6. Prueba piloto del taller VR
 
 `taller-vr.html` funciona sin servidor: videos (del sitio de los juegos VR), explicaciones, cronómetro, guion y resultados guardados en la tablet (exportar a CSV). Con el Worker contesta con IA; su batería (300 preguntas) se ajusta en el panel del staff.
 
@@ -123,11 +140,14 @@ PIN del staff en local: `1234`. Para probar en una tablet no sirve localhost (la
 ```
 jarvis-codexia/
 ├── index.html, staff.html, tarjetas.html, taller-vr.html, guia.html
-├── presentacion/            ← el PowerPoint del presentador
+├── presentacion/            ← el PowerPoint del presentador (y en fuente/ el script que lo arma)
+├── videos/                  ← videos de ayuda (dev/grabar_videos.mjs)
 ├── css/jarvis.css
 ├── js/
 │   ├── config.js            ← dirección del Worker, modo de IA, horario de las rondas
 │   ├── cerebro.js           ← el cerebro básico: intenciones, palabras clave y respuestas
+│   ├── misiones.js          ← las misiones (fase 1: armar; fase 2: descubrir)
+│   ├── guias.js             ← los videos de ayuda y sus pasos
 │   ├── datos.js             ← módulos, tarjetas, voces, núcleos, ambientes, chistes, datos curiosos
 │   ├── personalidades.js    ← las 6 personalidades (frases y estilo) y las reglas del staff
 │   ├── estaciones_datos.js  ← ayuda y pistas de cada estación
@@ -143,7 +163,7 @@ jarvis-codexia/
 └── dev/servidor.mjs         ← servidor de prueba local
 ```
 
-- **Sin build:** HTML, CSS y módulos de JavaScript. La voz usa la síntesis del navegador (gratis y sin internet); los fondos y núcleos se dibujan con `<canvas>`; los sonidos se generan con Web Audio.
+- **Sin build:** HTML, CSS y módulos de JavaScript. La voz usa la síntesis del navegador (gratis y sin internet; la app espera a que el celular cargue sus voces y prefiere las del aparato, porque las “de red” fallan sin internet); los fondos y núcleos se dibujan con `<canvas>`; los sonidos se generan con Web Audio.
 - **Seguridad:** la API key es un secreto del Worker. Las reglas del staff van primero en el prompt y lo que escriben los equipos va marcado como datos. La IA no conoce las claves de ningún taller. El Worker limita preguntas por tablet y por día, el tamaño de los datos y filtra groserías.
 - **Privacidad (son menores de edad):** solo nombres de pila; todo se guarda en la tablet y las fotos nunca se suben.
 

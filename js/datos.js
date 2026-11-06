@@ -42,41 +42,49 @@ export const MODULOS = [
   {
     id: 'identidad', nombre: 'Identidad', color: '#38bdf8', necesario: true,
     resumen: 'Nombre, lema y palabra de activación',
+    corto: 'La palabra de activación ("Oye, …") es lo que despierta a asistentes como Alexa o Siri.',
     sabias: 'Asistentes como Alexa o Siri esperan una sola "palabra de activación". La detectan dentro del propio aparato y solo entonces empiezan a escuchar de verdad.',
   },
   {
     id: 'voz', nombre: 'Voz', color: '#a78bfa', necesario: true,
     resumen: 'Tono, velocidad y estilo de voz',
+    corto: 'JARVIS habla con síntesis de voz: la computadora convierte texto en sonido. El tono y la velocidad son solo números.',
     sabias: 'Tu JARVIS habla con síntesis de voz (TTS, texto a voz): la computadora convierte letras en sonidos. Cambiar el tono y la velocidad es cambiar números en el programa.',
   },
   {
     id: 'nucleo', nombre: 'Núcleo visual', color: '#34d399', necesario: true,
     resumen: 'La forma y el color de tu JARVIS',
+    corto: 'Todo lo que ven en una app lo diseñó alguien: a eso se le llama diseño de interfaces.',
     sabias: 'Todo lo que ves en una app lo diseñó alguien: colores, formas y animaciones. A eso se le llama diseño de interfaces (UI/UX).',
   },
   {
     id: 'ambiente', nombre: 'Ambiente', color: '#fbbf24', necesario: false,
     resumen: 'El escenario de fondo',
+    corto: 'Este fondo no es una foto: se dibuja con código 30 veces por segundo, como en los videojuegos.',
     sabias: 'Este fondo no es una foto: se dibuja con código 30 veces por segundo. Así se hacen las animaciones de los videojuegos.',
   },
   {
     id: 'personalidad', nombre: 'Personalidad', color: '#f472b6', necesario: true,
     resumen: 'Cómo habla y piensa: su directiva principal',
+    corto: 'La directiva principal es un "prompt de sistema": le dice a una IA quién es y cómo hablar. ¡Programan con palabras!',
     sabias: 'La directiva principal se llama "prompt de sistema": es el texto que le dice a una IA quién es y cómo debe hablar. ¡Acaban de programar con palabras!',
   },
   {
     id: 'memoria', nombre: 'Memoria', color: '#fb923c', necesario: false,
     resumen: 'Lo que JARVIS sabe de su equipo',
+    corto: 'Una IA no recuerda nada sola: solo sabe lo que le mandan. A eso se le llama contexto.',
     sabias: 'Una IA no recuerda nada por sí sola: solo sabe lo que se le manda en cada mensaje. A eso se le llama contexto.',
   },
   {
     id: 'escudo', nombre: 'Escudo', color: '#94a3b8', necesario: false,
     resumen: 'Reglas de seguridad de la IA',
+    corto: 'Las reglas del staff van primero y nadie las puede cambiar: así nadie puede engañar a la IA.',
     sabias: 'Las IA tienen capas de reglas. Las del staff van primero y nadie las puede cambiar, ni siquiera su directiva. Así se evita que alguien engañe a la IA (a eso se le llama prompt injection).',
   },
   {
     id: 'habilidades', nombre: 'Habilidades', color: '#2dd4bf', necesario: false,
     resumen: 'Bitácora, cámara, puntos y chat',
+    corto: 'Una app se arma con funciones independientes, como piezas de Lego.',
     sabias: 'Una app se arma con funciones independientes. Así, varios programadores pueden trabajar al mismo tiempo en partes distintas.',
   },
 ];
@@ -128,10 +136,10 @@ export const AMBIENTES = {
 
 // ---------- habilidades ----------
 export const HABILIDADES = {
-  H1: { id: 'bitacora', nombre: 'Bitácora', desc: 'Guarda las pistas de cada estación.', sabias: 'Sus pistas se guardan en una base de datos en la nube: por eso aparecen en todos los dispositivos del equipo.' },
+  H1: { id: 'bitacora', nombre: 'Bitácora', desc: 'Guarda las pistas de cada estación.', sabias: 'Una bitácora guarda datos para después: sus piezas quedan en la memoria de esta tablet aunque cierren la página o se vaya el internet.' },
   H2: { id: 'camara', nombre: 'Cámara', desc: 'Fotos del equipo con marco de JARVIS.', sabias: 'Una foto es una cuadrícula de millones de puntos (pixeles). Cada pixel son 3 números: rojo, verde y azul.' },
   H3: { id: 'puntos', nombre: 'Puntos', desc: 'Registra los puntajes de cada taller.', sabias: 'Los códigos de los juegos VR traen una "suma de verificación": si cambian una sola letra, JARVIS se da cuenta de que el código es falso.' },
-  H4: { id: 'chat', nombre: 'Cerebro IA', desc: 'Conecta a JARVIS con una inteligencia artificial de verdad.', sabias: 'Sin esta tarjeta, JARVIS usa su cerebro básico: busca palabras clave y contesta con textos escritos por personas. Con el Cerebro IA, la pregunta viaja a un servidor que guarda una llave secreta (API key) y un modelo de lenguaje redacta la respuesta. La llave nunca llega a su tablet. Si la IA falla, vuelve el cerebro básico.' },
+  H4: { id: 'chat', nombre: 'Súper inteligencia', desc: 'Pregúntenle lo que sea: JARVIS se conecta a una IA.', sabias: 'Sin esta tarjeta, JARVIS usa su cerebro básico: busca palabras clave y contesta con textos escritos por personas. Con el Cerebro IA, la pregunta viaja a un servidor que guarda una llave secreta (API key) y un modelo de lenguaje redacta la respuesta. La llave nunca llega a su tablet. Si la IA falla, vuelve el cerebro básico.' },
 };
 export const HABILIDAD_POR_ID = Object.fromEntries(Object.entries(HABILIDADES).map(([k, h]) => [h.id, { ...h, codigo: k }]));
 
