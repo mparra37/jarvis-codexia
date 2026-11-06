@@ -51,9 +51,28 @@ Con solo este paso, todo funciona con el cerebro básico.
 
 ## 2. La súper inteligencia (opcional: Cloudflare Worker con la API key)
 
-Todo el taller funciona sin esto. Es solo para que, con la tarjeta H4, JARVIS pueda contestar cualquier pregunta con IA. (Si prefieren no usar la terminal ni `npm install`, se puede hacer pegando un solo archivo en la página de Cloudflare: pídanmelo cuando lo quieran configurar.)
+Todo el taller funciona sin esto. Es solo para que, con la tarjeta H4, JARVIS pueda contestar cualquier pregunta con IA.
 
 Necesitan una cuenta gratis de Cloudflare y una API key de Claude (console.anthropic.com → API Keys). En la consola de Anthropic pongan un **límite de gasto** mensual.
+
+### Opción A: copiando y pegando (sin terminal ni `npm install`)
+
+Todo el Worker está en un solo archivo: [`cloudflare/worker.js`](cloudflare/worker.js). Se hace todo en la página de Cloudflare:
+
+1. Entren a **dash.cloudflare.com** → **Compute (Workers)** → **Workers & Pages** → **Create** → **Start with Hello World!**. Pónganle de nombre `jarvis-codexia` y den **Deploy**.
+2. Den **Edit code**. Borren todo lo que tiene `worker.js`, peguen el contenido completo de `cloudflare/worker.js` (en GitHub: abrir el archivo → botón **Copy raw file**) y den **Deploy**.
+3. Regresen al Worker → **Settings** → **Variables and Secrets** → **Add**:
+   - Tipo **Secret**, nombre `ANTHROPIC_API_KEY`, valor: su API key de Claude.
+   - Tipo **Secret**, nombre `STAFF_PIN`, valor: un PIN que inventen para el panel del staff.
+   - Den **Deploy** (o **Save**).
+4. Copien la dirección del Worker (arriba, algo como `https://jarvis-codexia.SU-CUENTA.workers.dev`). Pónganla en `js/config.js` → `API_URL` y suban el cambio a GitHub (o mándenmela y yo lo hago).
+5. **Opcional, la base de datos:** **Storage & Databases** → **D1** → **Create** → nombre `jarvis-codexia`. Luego en el Worker → **Settings** → **Bindings** → **Add** → **D1 database**, nombre de variable `DB`, elijan la base y den **Deploy**. Las tablas se crean solas.
+
+**¿Hace falta la base de datos?** No. Sin ella todo funciona, con dos diferencias: la batería por tablet, la pausa y los ajustes del staff viven en la memoria del Worker (Cloudflare la reinicia de vez en cuando y entonces vuelven a los valores de inicio), y los resultados del taller VR se quedan en la tablet de la estación en vez de juntarse en el panel del staff. Para un día de taller está bien; con la base de datos queda más firme.
+
+Ajustes opcionales: en **Variables and Secrets** agreguen variables de tipo **Text** con los nombres de la tabla de abajo (por ejemplo `MODELO` = `claude-haiku-5-5`). Si no ponen nada, se usan los valores de la tabla.
+
+### Opción B (avanzado): con la terminal y wrangler
 
 ```bash
 cd worker
@@ -78,7 +97,7 @@ npx wrangler deploy
 
 El Worker **no guarda los JARVIS**: con cada pregunta la tablet manda los datos de su JARVIS (nombre, personalidad, memoria, estación) y un identificador al azar de la tablet. La base de datos D1 solo guarda cuántas preguntas lleva cada tablet hoy, los ajustes del staff y los resultados del taller VR.
 
-### Ajustes del Worker (`worker/wrangler.toml`)
+### Ajustes del Worker (variables en Cloudflare o en `worker/wrangler.toml`)
 
 | Variable | Qué hace |
 | --- | --- |
@@ -89,7 +108,9 @@ El Worker **no guarda los JARVIS**: con cada pregunta la tablet manda los datos 
 | `LIMITE_DIARIO` | Máximo de preguntas a la IA por día entre todos (3000): protege la API key |
 | `CLAVE_VR` | La clave de los códigos de los juegos VR (la misma de `ITC-VR-Games/js/config.js`) |
 
-Después de cambiar algo: `npx wrangler deploy`.
+Con la opción A se cambian en la página de Cloudflare; con la B, en `wrangler.toml` y luego `npx wrangler deploy`.
+
+Si cambian el código del Worker (`worker/src/`), vuelvan a generar el archivo para pegar: `cd worker && npm install && node armar_pegable.mjs`.
 
 **Costo aproximado:** cada pregunta usa unos 2,500 tokens de entrada y unos 400 de salida. Con Opus 5.5 son unos 2 centavos de dólar por pregunta; 20 tablets × 30 preguntas ≈ 12 dólares como máximo. Con Haiku 5.5, menos de 1 dólar por todo el evento.
 
@@ -159,7 +180,8 @@ jarvis-codexia/
 │   ├── vr.js, staff.js, tarjetas.js
 │   └── nucleo.js, ambiente.js, voz.js, sonidos.js, qr.js, camara.js, ui.js, api.js
 ├── vendor/                  ← jsQR (lee QR) y qrcode-generator (dibuja QR)
-├── worker/                  ← el Worker de Cloudflare (src/index.js, src/prompts.js, wrangler.toml)
+├── cloudflare/worker.js     ← el Worker en un solo archivo, para pegar en la página de Cloudflare (generado)
+├── worker/                  ← el código del Worker (src/index.js, src/prompts.js, wrangler.toml, armar_pegable.mjs)
 └── dev/servidor.mjs         ← servidor de prueba local
 ```
 

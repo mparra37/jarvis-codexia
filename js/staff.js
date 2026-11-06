@@ -56,6 +56,7 @@ function pintar() {
     <section class="panel">
       <h2>Cerebro IA</h2>
       <p style="margin-top:0">IA: <b style="color:${salud.ia && !salud.prueba ? 'var(--verde)' : 'var(--amarillo)'}">${iaTexto}</b></p>
+      ${salud.baseDeDatos === false ? '<p class="tenue" style="font-size:15px">Sin base de datos: la pausa y la batería funcionan, pero Cloudflare las reinicia de vez en cuando, y los resultados VR se quedan en la tablet de la estación. Para que todo se guarde, conecten la base de datos (paso opcional del LEEME).</p>' : ''}
       <div class="interruptor"><span><b>IA en las tablets</b><br><span class="tenue" style="font-size:15px">En pausa, cada JARVIS contesta con su cerebro básico (respuestas pre-escritas).</span></span>
         <button class="btn ${estado.chatActivo ? 'btn-primario' : 'btn-rojo'}" id="b-chat">${estado.chatActivo ? 'Activa' : 'En pausa'}</button></div>
       <div class="interruptor"><span><b>Batería por tablet</b><br><span class="tenue" style="font-size:15px">Preguntas de IA por tablet al día. Al acabarse, sigue el cerebro básico.</span></span>

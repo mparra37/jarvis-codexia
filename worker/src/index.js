@@ -5,13 +5,16 @@
  * prompt y le pregunta a Claude. La API key (secreto ANTHROPIC_API_KEY) nunca sale de aquí.
  * Si algo falla, la app contesta con su cerebro básico (respuestas pre-escritas).
  *
- * D1 guarda solo: cuántas preguntas lleva cada tablet hoy (la "batería"), los ajustes del staff y los
- * resultados del taller VR.
+ * La base de datos D1 (DB) es OPCIONAL. Con ella se guardan: cuántas preguntas lleva cada tablet hoy
+ * (la "batería"), los ajustes del staff y los resultados del taller VR. Sin ella, los límites se
+ * llevan en la memoria del Worker (se reinician solos de vez en cuando) y los resultados VR se
+ * quedan en la tablet.
  *
- * Variables (wrangler.toml): ORIGENES, MODELO, ESFUERZO, CUOTA_TABLETA, LIMITE_DIARIO, CLAVE_VR
- * Secretos: ANTHROPIC_API_KEY, STAFF_PIN
+ * Variables: ORIGENES, MODELO, ESFUERZO, CUOTA_TABLETA, LIMITE_DIARIO, CLAVE_VR (todas opcionales)
+ * Secretos: ANTHROPIC_API_KEY (necesario), STAFF_PIN (para el panel del staff)
  */
-import Anthropic from '@anthropic-ai/sdk';
+import { llamarClaude } from './ia.js';
+import { ErrorHttp } from './errores.js';
 import { primerTextoSucio } from '../../js/filtro.js';
 import { leerCodigoVR } from '../../js/codigo_vr.js';
 import { promptEquipo, pedidoPresentacion, promptTallerVR } from './prompts.js';
@@ -41,13 +44,6 @@ export default {
   },
 };
 
-class ErrorHttp extends Error {
-  constructor(status, mensaje, extra = {}) {
-    super(mensaje);
-    this.status = status;
-    this.extra = extra;
-  }
-}
 const ok = (cuerpo, status = 200) => ({ cuerpo, status });
 
 function json(cuerpo, status, headers) {
@@ -56,7 +52,7 @@ function json(cuerpo, status, headers) {
 
 function encabezadosCors(request, env) {
   const origen = request.headers.get('Origin') || '';
-  const permitidos = String(env.ORIGENES || '*').split(',').map((s) => s.trim()).filter(Boolean);
+  const permitidos = String(env.ORIGENES || 'https://mparra37.github.io').split(',').map((s) => s.trim()).filter(Boolean);
   const local = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origen);
   const permitido = permitidos.includes('*') || permitidos.includes(origen) || local;
   return {
@@ -69,7 +65,7 @@ function encabezadosCors(request, env) {
 }
 
 async function asegurarEsquema(db) {
-  if (esquemaListo) return;
+  if (esquemaListo || !db) return;
   await db.batch([
     db.prepare('CREATE TABLE IF NOT EXISTS ajustes (clave TEXT PRIMARY KEY, valor TEXT NOT NULL)'),
     db.prepare(`CREATE TABLE IF NOT EXISTS uso (
@@ -90,12 +86,19 @@ async function leerJson(request, max = 40000) {
   try { return texto ? JSON.parse(texto) : {}; } catch (e) { throw new ErrorHttp(400, 'JSON inválido.'); }
 }
 
+// Sin base de datos, todo esto vive en la memoria del Worker (se pierde cuando Cloudflare lo reinicia).
+const memoria = { ajustes: new Map(), uso: new Map() };
+const hayBD = (env) => Boolean(env.DB);
+const SIN_BD = 'Para esto hay que conectar la base de datos (paso opcional del LEEME).';
+
 async function leerAjuste(env, clave, porDefecto) {
+  if (!hayBD(env)) return memoria.ajustes.has(clave) ? memoria.ajustes.get(clave) : porDefecto;
   const fila = await env.DB.prepare('SELECT valor FROM ajustes WHERE clave = ?').bind(clave).first();
   if (!fila) return porDefecto;
   try { return JSON.parse(fila.valor); } catch (e) { return porDefecto; }
 }
 async function guardarAjuste(env, clave, valor) {
+  if (!hayBD(env)) { memoria.ajustes.set(clave, valor); return; }
   await env.DB.prepare('INSERT INTO ajustes (clave, valor) VALUES (?, ?) ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor')
     .bind(clave, JSON.stringify(valor)).run();
 }
@@ -123,6 +126,13 @@ function exigirStaff(request, env) {
 /** Cuenta una llamada a la IA del día y corta si ya se llegó al límite total (protege la API key). */
 async function contarUsoIA(env) {
   const limite = Number(env.LIMITE_DIARIO || 3000);
+  if (!hayBD(env)) {
+    const clave = `uso:${hoy()}`;
+    const n = (memoria.ajustes.get(clave) || 0) + 1;
+    memoria.ajustes.set(clave, n);
+    if (n > limite) throw new ErrorHttp(429, 'Se acabó la energía de la IA por hoy.');
+    return;
+  }
   const fila = await env.DB.prepare(`INSERT INTO ajustes (clave, valor) VALUES (?, '1')
     ON CONFLICT(clave) DO UPDATE SET valor = CAST(CAST(valor AS INTEGER) + 1 AS TEXT) RETURNING valor`).bind(`uso:${hoy()}`).first();
   if (Number(fila.valor) > limite) throw new ErrorHttp(429, 'Se acabó la energía de la IA por hoy.');
@@ -176,30 +186,7 @@ async function preguntarIA(env, system, mensajes, { prueba } = {}) {
     if (env.MODO_PRUEBA === '1') return prueba || '(Modo de prueba) Aquí contestará la IA cuando se configure la API key.';
     throw new ErrorHttp(503, 'La IA todavía no está configurada.');
   }
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 1, timeout: 25000 });
-  const modelo = env.MODELO || 'claude-opus-5-5';
-  const parametros = {
-    model: modelo,
-    max_tokens: 2000,
-    system,
-    messages: mensajes,
-    output_config: { effort: env.ESFUERZO || 'low' },
-  };
-  let respuesta;
-  try {
-    // los modelos con clasificadores de seguridad pueden rechazar; "fallbacks" reintenta en otro modelo
-    if (/^claude-(opus|fable)/.test(modelo) || modelo === 'claude-sonnet-5-5') {
-      respuesta = await client.beta.messages.create({ ...parametros, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' });
-    } else {
-      respuesta = await client.messages.create(parametros);
-    }
-  } catch (e) {
-    if (e instanceof Anthropic.AuthenticationError) throw new ErrorHttp(503, 'La API key de la IA no es válida.');
-    if (e instanceof Anthropic.RateLimitError) throw new ErrorHttp(429, 'La IA está muy ocupada. Intenten en unos segundos.');
-    if (e instanceof Anthropic.BadRequestError) { console.error('IA 400', e.message); throw new ErrorHttp(502, 'La IA no pudo contestar esa pregunta.'); }
-    if (e instanceof Anthropic.APIError) { console.error('IA', e.status, e.message); throw new ErrorHttp(502, 'La IA no está disponible en este momento.'); }
-    throw new ErrorHttp(502, 'No se pudo conectar con la IA.');
-  }
+  const respuesta = await llamarClaude(env, { system, mensajes });
   if (respuesta.stop_reason === 'refusal') return 'Mejor hablemos de la misión. ¿En qué taller les ayudo?';
   const texto = respuesta.content.filter((b) => b.type === 'text').map((b) => b.text).join(' ').trim();
   return texto || 'Mmm, no tengo una respuesta para eso. ¿Me lo preguntan de otra forma?';
@@ -227,7 +214,8 @@ async function rutear(request, env, url) {
     if (id === 'estado' && metodo === 'POST') return staffCambiar(request, env);
     if (id === 'recargar' && metodo === 'POST') {
       // todas las tablets vuelven a tener su batería completa hoy
-      await env.DB.prepare('UPDATE uso SET n = 0 WHERE dia = ?').bind(hoy()).run();
+      if (hayBD(env)) await env.DB.prepare('UPDATE uso SET n = 0 WHERE dia = ?').bind(hoy()).run();
+      else memoria.uso.forEach((u) => { u.n = 0; });
       return staffEstado(env);
     }
   }
@@ -251,26 +239,12 @@ async function chat(request, env) {
   const cuota = Math.max(0, Number(estado.cuota) || 0);
 
   let lista;
-  let fila;
-  if (presentacion) {
-    lista = [{ role: 'user', content: pedidoPresentacion(jarvis) }];
-    fila = await env.DB.prepare(`INSERT INTO uso (dispositivo, dia, n, presentaciones, ultimo) VALUES (?, ?, 0, 1, 0)
-      ON CONFLICT(dispositivo, dia) DO UPDATE SET presentaciones = presentaciones + 1 WHERE uso.presentaciones < ?
-      RETURNING n`).bind(dispositivo, dia, PRESENTACIONES_POR_TABLETA).first();
-    if (!fila) throw new ErrorHttp(402, 'Ya se usaron las presentaciones de hoy.');
-  } else {
+  if (presentacion) lista = [{ role: 'user', content: pedidoPresentacion(jarvis) }];
+  else {
     lista = limpiarMensajes(cuerpo.mensajes);
     revisarTextos(lista[lista.length - 1].content);
-    const previa = await env.DB.prepare('SELECT ultimo FROM uso WHERE dispositivo = ? AND dia = ?').bind(dispositivo, dia).first();
-    if (previa && ahora - previa.ultimo < 2500) throw new ErrorHttp(429, 'Un momento: JARVIS sigue pensando.');
-    fila = await env.DB.prepare(`INSERT INTO uso (dispositivo, dia, n, presentaciones, ultimo) VALUES (?, ?, 1, 0, ?)
-      ON CONFLICT(dispositivo, dia) DO UPDATE SET n = n + 1, ultimo = excluded.ultimo WHERE uso.n < ?
-      RETURNING n`).bind(dispositivo, dia, ahora, cuota).first();
-    if (!fila || (fila.n > cuota)) {
-      if (fila) await env.DB.prepare('UPDATE uso SET n = n - 1 WHERE dispositivo = ? AND dia = ?').bind(dispositivo, dia).run();
-      throw new ErrorHttp(402, 'Se acabaron las preguntas de IA de hoy en esta tablet.', { restantes: 0 });
-    }
   }
+  const fila = await tomarTurno(env, { dispositivo, dia, presentacion, cuota, ahora });
 
   let texto;
   try {
@@ -283,23 +257,74 @@ async function chat(request, env) {
     texto = await preguntarIA(env, promptEquipo(jarvis, presentacion ? null : estacion), lista, { prueba });
   } catch (e) {
     // si la IA falló, se devuelve la pregunta a la batería
-    const campo = presentacion ? 'presentaciones' : 'n';
-    await env.DB.prepare(`UPDATE uso SET ${campo} = MAX(0, ${campo} - 1), ultimo = 0 WHERE dispositivo = ? AND dia = ?`).bind(dispositivo, dia).run();
+    await devolverTurno(env, { dispositivo, dia, presentacion });
     throw e;
   }
   return ok({ texto, restantes: Math.max(0, cuota - Number(fila.n || 0)) });
+}
+
+/** Cuenta una pregunta (o presentación) de una tablet hoy. Lanza 402 sin batería y 429 si va muy rápido. */
+async function tomarTurno(env, { dispositivo, dia, presentacion, cuota, ahora }) {
+  if (!hayBD(env)) {
+    const k = `${dispositivo}|${dia}`;
+    const u = memoria.uso.get(k) || { n: 0, presentaciones: 0, ultimo: 0 };
+    if (presentacion) {
+      if (u.presentaciones >= PRESENTACIONES_POR_TABLETA) throw new ErrorHttp(402, 'Ya se usaron las presentaciones de hoy.');
+      u.presentaciones += 1;
+    } else {
+      if (ahora - u.ultimo < 2500) throw new ErrorHttp(429, 'Un momento: JARVIS sigue pensando.');
+      if (u.n >= cuota) throw new ErrorHttp(402, 'Se acabaron las preguntas de IA de hoy en esta tablet.', { restantes: 0 });
+      u.n += 1;
+      u.ultimo = ahora;
+    }
+    memoria.uso.set(k, u);
+    return { n: u.n };
+  }
+  if (presentacion) {
+    const fila = await env.DB.prepare(`INSERT INTO uso (dispositivo, dia, n, presentaciones, ultimo) VALUES (?, ?, 0, 1, 0)
+      ON CONFLICT(dispositivo, dia) DO UPDATE SET presentaciones = presentaciones + 1 WHERE uso.presentaciones < ?
+      RETURNING n`).bind(dispositivo, dia, PRESENTACIONES_POR_TABLETA).first();
+    if (!fila) throw new ErrorHttp(402, 'Ya se usaron las presentaciones de hoy.');
+    return fila;
+  }
+  const previa = await env.DB.prepare('SELECT ultimo FROM uso WHERE dispositivo = ? AND dia = ?').bind(dispositivo, dia).first();
+  if (previa && ahora - previa.ultimo < 2500) throw new ErrorHttp(429, 'Un momento: JARVIS sigue pensando.');
+  const fila = await env.DB.prepare(`INSERT INTO uso (dispositivo, dia, n, presentaciones, ultimo) VALUES (?, ?, 1, 0, ?)
+    ON CONFLICT(dispositivo, dia) DO UPDATE SET n = n + 1, ultimo = excluded.ultimo WHERE uso.n < ?
+    RETURNING n`).bind(dispositivo, dia, ahora, cuota).first();
+  if (!fila || fila.n > cuota) {
+    if (fila) await env.DB.prepare('UPDATE uso SET n = n - 1 WHERE dispositivo = ? AND dia = ?').bind(dispositivo, dia).run();
+    throw new ErrorHttp(402, 'Se acabaron las preguntas de IA de hoy en esta tablet.', { restantes: 0 });
+  }
+  return fila;
+}
+
+async function devolverTurno(env, { dispositivo, dia, presentacion }) {
+  const campo = presentacion ? 'presentaciones' : 'n';
+  if (!hayBD(env)) {
+    const u = memoria.uso.get(`${dispositivo}|${dia}`);
+    if (u) { u[campo] = Math.max(0, u[campo] - 1); u.ultimo = 0; }
+    return;
+  }
+  await env.DB.prepare(`UPDATE uso SET ${campo} = MAX(0, ${campo} - 1), ultimo = 0 WHERE dispositivo = ? AND dia = ?`).bind(dispositivo, dia).run();
 }
 
 // ---------- staff ----------
 async function staffEstado(env) {
   const estado = await estadoGlobal(env);
   const dia = hoy();
-  const uso = await env.DB.prepare('SELECT COUNT(*) AS tabletas, COALESCE(SUM(n), 0) AS preguntas, COALESCE(SUM(presentaciones), 0) AS presentaciones FROM uso WHERE dia = ?').bind(dia).first();
+  let uso;
+  if (hayBD(env)) {
+    uso = await env.DB.prepare('SELECT COUNT(*) AS tabletas, COALESCE(SUM(n), 0) AS preguntas, COALESCE(SUM(presentaciones), 0) AS presentaciones FROM uso WHERE dia = ?').bind(dia).first();
+  } else {
+    const hoyUso = [...memoria.uso.entries()].filter(([k]) => k.endsWith(`|${dia}`)).map(([, u]) => u);
+    uso = { tabletas: hoyUso.length, preguntas: hoyUso.reduce((t, u) => t + u.n, 0), presentaciones: hoyUso.reduce((t, u) => t + u.presentaciones, 0) };
+  }
   return ok({
     estado,
     energiaVR: await leerAjuste(env, 'energiaVR', 300),
     hoy: { ...uso, totalIA: Number(await leerAjuste(env, `uso:${dia}`, 0)), limite: Number(env.LIMITE_DIARIO || 3000) },
-    salud: { ia: hayIA(env), prueba: !env.ANTHROPIC_API_KEY, modelo: env.MODELO || 'claude-opus-5-5' },
+    salud: { ia: hayIA(env), prueba: !env.ANTHROPIC_API_KEY, modelo: env.MODELO || 'claude-opus-5-5', baseDeDatos: hayBD(env) },
   });
 }
 
@@ -326,8 +351,14 @@ async function chatVR(request, env) {
   if (!hayIA(env)) throw new ErrorHttp(503, 'La IA todavía no está configurada.');
   const lista = limpiarMensajes(mensajes);
   revisarTextos(lista[lista.length - 1].content);
-  const r = await env.DB.prepare(`INSERT INTO ajustes (clave, valor) VALUES ('energiaVR', '299')
-    ON CONFLICT(clave) DO UPDATE SET valor = CAST(CAST(valor AS INTEGER) - 1 AS TEXT) WHERE CAST(valor AS INTEGER) > 0 RETURNING valor`).first();
+  let r;
+  if (hayBD(env)) {
+    r = await env.DB.prepare(`INSERT INTO ajustes (clave, valor) VALUES ('energiaVR', '299')
+      ON CONFLICT(clave) DO UPDATE SET valor = CAST(CAST(valor AS INTEGER) - 1 AS TEXT) WHERE CAST(valor AS INTEGER) > 0 RETURNING valor`).first();
+  } else {
+    const quedan = Number(memoria.ajustes.has('energiaVR') ? memoria.ajustes.get('energiaVR') : 300);
+    if (quedan > 0) { memoria.ajustes.set('energiaVR', quedan - 1); r = { valor: quedan - 1 }; }
+  }
   if (!r) throw new ErrorHttp(402, 'Se acabó la batería del JARVIS de la estación. Recárguenla desde el panel del staff.', { energia: 0 });
   let texto;
   try {
@@ -336,18 +367,21 @@ async function chatVR(request, env) {
       prueba: `(Modo de prueba) Recibí tu pregunta: "${lista[lista.length - 1].content.slice(0, 80)}". Con la API key configurada, aquí contestará la IA sabiendo las reglas de los 4 juegos.`,
     });
   } catch (e) {
-    await env.DB.prepare("UPDATE ajustes SET valor = CAST(CAST(valor AS INTEGER) + 1 AS TEXT) WHERE clave = 'energiaVR'").run();
+    if (hayBD(env)) await env.DB.prepare("UPDATE ajustes SET valor = CAST(CAST(valor AS INTEGER) + 1 AS TEXT) WHERE clave = 'energiaVR'").run();
+    else memoria.ajustes.set('energiaVR', Number(memoria.ajustes.get('energiaVR') || 0) + 1);
     throw e;
   }
   return ok({ texto, energia: Number(await leerAjuste(env, 'energiaVR', 0)) });
 }
 
 async function listarResultadosVR(env) {
+  if (!hayBD(env)) throw new ErrorHttp(503, SIN_BD);
   const { results } = await env.DB.prepare('SELECT * FROM resultados_vr ORDER BY t DESC LIMIT 500').all();
   return ok({ resultados: results.map((r) => ({ ...r, valido: Boolean(r.valido) })) });
 }
 
 async function guardarResultadoVR(request, env) {
+  if (!hayBD(env)) throw new ErrorHttp(503, SIN_BD);
   const p = await leerJson(request, 4000);
   const equipo = String(p.equipo || '').trim().slice(0, 40);
   if (!equipo) throw new ErrorHttp(400, 'Escriban el nombre del equipo.');
@@ -372,6 +406,7 @@ async function guardarResultadoVR(request, env) {
 }
 
 async function borrarResultadoVR(request, env, id) {
+  if (!hayBD(env)) throw new ErrorHttp(503, SIN_BD);
   const fila = await env.DB.prepare('SELECT t FROM resultados_vr WHERE id = ?').bind(id).first();
   if (!fila) return ok({ ok: true });
   if (Date.now() - fila.t > 15 * 60 * 1000 && !esStaff(request, env)) {

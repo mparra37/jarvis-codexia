@@ -400,15 +400,18 @@ async function pintarResultados(cont) {
     };
     registro.valido = Boolean(lectura && lectura.valido && lectura.puntaje === registro.puntaje);
     let enviado = false;
+    let sinBaseDeDatos = false;
     if (hayServidor()) {
       try {
         await llamar('POST', '/api/vr/resultados', registro);
         enviado = true;
       } catch (e) {
-        if (e.status && e.status !== 0) { aviso(e.message, { mal: true }); return; }
+        // 503: el servidor no tiene base de datos → los resultados se quedan en esta tablet
+        if (e.status === 503) sinBaseDeDatos = true;
+        else if (e.status && e.status !== 0) { aviso(e.message, { mal: true }); return; }
       }
     }
-    guardarLocales([...locales(), { ...registro, pendiente: hayServidor() && !enviado }]);
+    guardarLocales([...locales(), { ...registro, pendiente: hayServidor() && !enviado && !sinBaseDeDatos }]);
     sonido('instalar');
     const gano = j && registro.puntaje >= j.minimo;
     decir(`Registrado: ${equipo}, ${registro.puntaje} en ${j ? j.nombre.split(' · ').pop() : nombreJuego}. ${gano ? '¡Con eso ganaron su pista!' : `Para la pista necesitan ${j ? j.minimo : 'más'} ${j ? j.unidad : 'puntos'}.`}`);
